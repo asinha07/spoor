@@ -289,7 +289,7 @@ func TestQueryBuilders(t *testing.T) {
 		`| format if (spoor_m:*) "<spoor_m>" as _msg`,
 		`| replace_regexp ("^([^{\\[\\r\\n][^\\r\\n]*)[\\r\\n](?s:.*)", "$1")`,
 		`| collapse_nums prettify | format if (spoor_c:*) "<spoor_c><_msg>" as _msg`,
-		`, count() if (_time:[2026-01-01T00:00:00Z, 2026-01-01T00:30:00Z)) b0, min(_time) first, any(raw) example | total_stats by (spoor_svc) sum(n) spoor_etotal, sum(b0) spoor_e0 | sort by (n desc) partition by (spoor_svc) limit 200`,
+		`, count() if (_time:[2026-01-01T00:00:00Z, 2026-01-01T00:30:00Z)) b0, min(_time) first, any(raw) example | total_stats by (spoor_svc) sum(n) spoor_etotal, sum(b0) spoor_e0 | sort by (n desc, _msg) partition by (spoor_svc) limit 200`,
 	} {
 		if !strings.Contains(pq, want) {
 			t.Errorf("patternQuery lacks %s\n%s", want, pq)
@@ -305,7 +305,7 @@ func TestQueryBuilders(t *testing.T) {
 	if got, want := e.totalsQuery("*", 30*time.Minute, start), `* | copy "service.name" as spoor_svc | stats by (_time:1800000ms offset 1380000ms, spoor_svc) count() total, count() if (NOT severity_text:*) unclassified`; got != want {
 		t.Errorf("totalsQuery:\n got %s\nwant %s", got, want)
 	}
-	if got, want := e.spanStatsQuery(e.spanFilter("pay", "")), `span_id:* "resource_attr:service.name":="pay" | stats by ("name") count() n, count() if (status_code:=2) errs, quantile(0.95, "duration") p95, sum("duration") total | sort by (n desc) | limit 200`; got != want {
+	if got, want := e.spanStatsQuery(e.spanFilter("pay", "")), `span_id:* "resource_attr:service.name":="pay" | stats by ("name") count() n, count() if (status_code:=2) errs, quantile(0.95, "duration") p95, sum("duration") total | sort by (n desc, "name") | limit 200`; got != want {
 		t.Errorf("spanStatsQuery:\n got %s\nwant %s", got, want)
 	}
 	if got := e.spanFilter("pay", "POST /charge"); got != `span_id:* "resource_attr:service.name":="pay" "name":="POST /charge"` {

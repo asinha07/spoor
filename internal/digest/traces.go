@@ -52,8 +52,9 @@ func (e *Engine) spanFilter(svc, op string) string {
 func (e *Engine) spanStatsQuery(filter string) string {
 	t := e.cfg.Traces
 	name, dur := backend.Quote(t.NameField), backend.Quote(t.DurationField)
-	return fmt.Sprintf("%s | stats by (%s) count() n, count() if (%s) errs, quantile(0.95, %s) p95, sum(%s) total | sort by (n desc) | limit %d",
-		filter, name, t.ErrorFilter, dur, dur, spanLimit)
+	// The name breaks ties, so the cut at the limit is the same on every run.
+	return fmt.Sprintf("%s | stats by (%s) count() n, count() if (%s) errs, quantile(0.95, %s) p95, sum(%s) total | sort by (n desc, %s) | limit %d",
+		filter, name, t.ErrorFilter, dur, dur, name, spanLimit)
 }
 
 func (e *Engine) spanStats(ctx context.Context, q string, r window.Range) (map[string]spanStat, error) {

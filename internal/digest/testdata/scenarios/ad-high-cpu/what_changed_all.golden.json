@@ -1,17 +1,17 @@
 {
-  "summary": "6 change(s) in 2 services. Strongest: ad — Added latency starts here, in \"GET /ads\": self time 12ms → 75ms (100% of added self time). Also: ad — Span \"GET /ads\" p95 19ms → 116ms (100% of added latency). Also: ad — CPU up: 0.08 cores → 0.72 cores. Earliest onset 2026-10-16T03:24:00Z. Errors not significantly up (not new) in: product-catalog, recommendation, checkout.",
-  "window": "2026-10-16T03:24:00Z/2026-10-16T03:54:00Z",
-  "baseline": "2026-10-16T00:24:00Z/2026-10-16T03:24:00Z (previous, 6 windows)",
+  "summary": "6 change(s) in 2 services. Strongest: ad — Added latency starts here, in \"GET /ads\": self time 12ms → 74ms (100% of added self time). Also: ad — Span \"GET /ads\" p95 19ms → 116ms (100% of added latency). Also: ad — CPU up: 0.08 cores → 0.72 cores. Earliest onset 2026-10-16T03:59:00Z. Errors not significantly up (not new) in: product-catalog, checkout, recommendation.",
+  "window": "2026-10-16T03:59:00Z/2026-10-16T04:29:00Z",
+  "baseline": "2026-10-16T00:59:00Z/2026-10-16T03:59:00Z (previous, 6 windows)",
   "findings": [
     {
       "service": "ad",
       "signal": "traces",
       "kind": "latency_origin",
       "score": 0.99,
-      "title": "Added latency starts here, in \"GET /ads\": self time 12ms → 75ms (100% of added self time)",
+      "title": "Added latency starts here, in \"GET /ads\": self time 12ms → 74ms (100% of added self time)",
       "before": "12ms",
-      "after": "75ms",
-      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T03%3A54%3A00\u0026g0.range_input=30m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22ad%22+%22name%22%3A%3D%22GET+%2Fads%22"
+      "after": "74ms",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T04%3A29%3A00\u0026g0.range_input=30m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22ad%22+%22name%22%3A%3D%22GET+%2Fads%22"
     },
     {
       "service": "ad",
@@ -21,8 +21,8 @@
       "title": "Span \"GET /ads\" p95 19ms → 116ms (100% of added latency)",
       "before": "19ms",
       "after": "116ms",
-      "trace_id": "6412af4526a71edfe2a0b179a9c7209a",
-      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T03%3A54%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22ad%22"
+      "trace_id": "e6746aa41c98c1e159f839848811f567",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T04%3A29%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22ad%22"
     },
     {
       "service": "ad",
@@ -32,19 +32,19 @@
       "title": "CPU up: 0.08 cores → 0.72 cores",
       "before": "0.08 cores",
       "after": "0.72 cores",
-      "onset": "2026-10-16T03:24:00Z",
-      "evidence_link": "http://localhost:8428/vmui/#/?g0.end_input=2026-10-16T03%3A54%3A00\u0026g0.expr=sum%28rate%28process_cpu_seconds_total%7Bservice_name%3D%22ad%22%7D%5B30m%5D%29%29\u0026g0.range_input=210m\u0026g0.relative_time=none"
+      "onset": "2026-10-16T03:59:00Z",
+      "evidence_link": "http://localhost:8428/vmui/#/?g0.end_input=2026-10-16T04%3A29%3A00\u0026g0.expr=sum%28rate%28process_cpu_seconds_total%7Bservice_name%3D%22ad%22%7D%5B30m%5D%29%29\u0026g0.range_input=210m\u0026g0.relative_time=none"
     },
     {
       "service": "ad",
       "signal": "metrics",
       "kind": "latency_up",
       "score": 0.74,
-      "title": "P95 latency up: 24ms → 196ms",
+      "title": "P95 latency up: 24ms → 195ms",
       "before": "24ms",
-      "after": "196ms",
-      "onset": "2026-10-16T03:24:00Z",
-      "evidence_link": "http://localhost:8428/vmui/#/?g0.end_input=2026-10-16T03%3A54%3A00\u0026g0.expr=histogram_quantile%280.95%2C+sum%28rate%28http_server_request_duration_seconds_bucket%7Bservice_name%3D%22ad%22%7D%5B30m%5D%29%29+by+%28le%29%29\u0026g0.range_input=210m\u0026g0.relative_time=none"
+      "after": "195ms",
+      "onset": "2026-10-16T03:59:00Z",
+      "evidence_link": "http://localhost:8428/vmui/#/?g0.end_input=2026-10-16T04%3A29%3A00\u0026g0.expr=histogram_quantile%280.95%2C+sum%28rate%28http_server_request_duration_seconds_bucket%7Bservice_name%3D%22ad%22%7D%5B30m%5D%29%29+by+%28le%29%29\u0026g0.range_input=210m\u0026g0.relative_time=none"
     },
     {
       "service": "frontend",
@@ -54,8 +54,8 @@
       "title": "Span \"ad.GetAds\" p95 20ms → 117ms (50% of added latency) — added latency originates in ad",
       "before": "20ms",
       "after": "117ms",
-      "trace_id": "6412af4526a71edfe2a0b179a9c7209a",
-      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T03%3A54%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22frontend%22"
+      "trace_id": "e6746aa41c98c1e159f839848811f567",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T04%3A29%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22frontend%22"
     },
     {
       "service": "frontend",
@@ -65,40 +65,40 @@
       "title": "Span \"GET /api/ads\" p95 23ms → 120ms (50% of added latency) — added latency originates in ad",
       "before": "23ms",
       "after": "120ms",
-      "trace_id": "6412af4526a71edfe2a0b179a9c7209a",
-      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T03%3A54%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22frontend%22"
+      "trace_id": "e6746aa41c98c1e159f839848811f567",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T04%3A29%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22frontend%22"
     }
   ],
   "steady_errors": [
     {
       "service": "product-catalog",
-      "errors_now": 16,
-      "errors_usual": 10.5,
-      "change": "+52%",
-      "log_lines_change": "+6%",
+      "errors_now": 14,
+      "errors_usual": 12.5,
+      "change": "+12%",
+      "log_lines_change": "+13%",
       "example": "failed to load product \u003cID\u003e: database query returned error"
     },
     {
-      "service": "recommendation",
-      "errors_now": 9,
-      "errors_usual": 7.5,
-      "change": "+20%",
-      "log_lines_change": "+7%",
-      "example": "call to catalog.GetProduct failed with status \u003cN\u003e"
+      "service": "checkout",
+      "errors_now": 8,
+      "errors_usual": 3.5,
+      "change": "+129%",
+      "log_lines_change": "+15%",
+      "example": "call to payment.Charge failed with status \u003cN\u003e"
     },
     {
-      "service": "checkout",
-      "errors_now": 7,
-      "errors_usual": 4.5,
-      "change": "+56%",
-      "log_lines_change": "-6%",
-      "example": "call to payment.Charge failed with status \u003cN\u003e"
+      "service": "recommendation",
+      "errors_now": 8,
+      "errors_usual": 7.5,
+      "change": "+7%",
+      "log_lines_change": "+14%",
+      "example": "call to catalog.GetProduct failed with status \u003cN\u003e"
     }
   ],
   "truncated": 0,
   "coverage": {
     "logs": "ok",
-    "logs_lines": "89 error lines in 3660 log lines",
+    "logs_lines": "89 error lines in 3588 log lines",
     "metrics": "ok",
     "traces": "ok"
   }

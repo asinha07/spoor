@@ -1,12 +1,12 @@
 {
-  "summary": "No baseline data for logs, metrics, traces in 2026-10-08T19:54:00Z/2026-10-08T22:54:00Z, so Spoor cannot measure what changed there. Use baseline=previous, or a period the backends retain.",
-  "window": "2026-10-15T22:24:00Z/2026-10-15T22:54:00Z",
-  "baseline": "2026-10-08T19:54:00Z/2026-10-08T22:54:00Z (7d, 6 windows)",
+  "summary": "No baseline data for logs, metrics, traces in 2026-10-08T20:29:00Z/2026-10-08T23:29:00Z, so Spoor cannot measure what changed there. Use baseline=previous, or a period the backends retain.",
+  "window": "2026-10-15T22:59:00Z/2026-10-15T23:29:00Z",
+  "baseline": "2026-10-08T20:29:00Z/2026-10-08T23:29:00Z (7d, 6 windows)",
   "findings": [],
   "truncated": 0,
   "coverage": {
     "logs": "no data in baseline period; changes cannot be measured (try baseline=previous)",
-    "logs_lines": "54 error lines in 3432 log lines",
+    "logs_lines": "87 error lines in 3165 log lines",
     "metrics": "no data in baseline period; changes cannot be measured (try baseline=previous)",
     "traces": "no data in baseline period; changes cannot be measured (try baseline=previous)"
   }

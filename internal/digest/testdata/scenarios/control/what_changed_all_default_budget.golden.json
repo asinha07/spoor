@@ -1,38 +1,38 @@
 {
-  "summary": "No significant change in 7 services during 2026-10-15T12:24:00Z/2026-10-15T12:54:00Z compared with the previous baseline. Errors present before this window and not significantly up, so not a new problem: frontend (36 error lines now vs 32.5 usual, +11%, all log lines +6%; e.g. \"call to recommendation.List failed with status \u003cN\u003e\"); product-catalog (14 error lines now vs 11.5 usual, +22%, all log lines +4%; e.g. \"failed to load product \u003cID\u003e: database query returned error\"); recommendation (12 error lines now vs 8 usual, +50%, all log lines +10%; e.g. \"call to catalog.GetProduct failed with status \u003cN\u003e\").",
-  "window": "2026-10-15T12:24:00Z/2026-10-15T12:54:00Z",
-  "baseline": "2026-10-15T09:24:00Z/2026-10-15T12:24:00Z (previous, 6 windows)",
+  "summary": "No significant change in 7 services during 2026-10-15T12:59:00Z/2026-10-15T13:29:00Z compared with the previous baseline. Errors present before this window and not significantly up, so not a new problem: frontend (32 error lines now vs 28 usual, +14%, all log lines +10%; e.g. \"call to recommendation.List failed with status \u003cN\u003e\"); product-catalog (8 error lines now vs 8.5 usual, -6%, all log lines +5%; e.g. \"failed to load product \u003cID\u003e: database query returned error\"); recommendation (7 error lines now vs 6.5 usual, +8%, all log lines -2%; e.g. \"recommendation model unavailable\").",
+  "window": "2026-10-15T12:59:00Z/2026-10-15T13:29:00Z",
+  "baseline": "2026-10-15T09:59:00Z/2026-10-15T12:59:00Z (previous, 6 windows)",
   "findings": [],
   "steady_errors": [
     {
       "service": "frontend",
-      "errors_now": 36,
-      "errors_usual": 32.5,
-      "change": "+11%",
-      "log_lines_change": "+6%",
+      "errors_now": 32,
+      "errors_usual": 28,
+      "change": "+14%",
+      "log_lines_change": "+10%",
       "example": "call to recommendation.List failed with status \u003cN\u003e"
     },
     {
       "service": "product-catalog",
-      "errors_now": 14,
-      "errors_usual": 11.5,
-      "change": "+22%",
-      "log_lines_change": "+4%",
+      "errors_now": 8,
+      "errors_usual": 8.5,
+      "change": "-6%",
+      "log_lines_change": "+5%",
       "example": "failed to load product \u003cID\u003e: database query returned error"
     },
     {
       "service": "recommendation",
-      "errors_now": 12,
-      "errors_usual": 8,
-      "change": "+50%",
-      "log_lines_change": "+10%",
-      "example": "call to catalog.GetProduct failed with status \u003cN\u003e"
+      "errors_now": 7,
+      "errors_usual": 6.5,
+      "change": "+8%",
+      "log_lines_change": "-2%",
+      "example": "recommendation model unavailable"
     }
   ],
   "truncated": 0,
   "coverage": {
     "logs": "ok",
-    "logs_lines": "76 error lines in 3552 log lines",
+    "logs_lines": "60 error lines in 3581 log lines",
     "metrics": "ok",
     "traces": "ok"
   }

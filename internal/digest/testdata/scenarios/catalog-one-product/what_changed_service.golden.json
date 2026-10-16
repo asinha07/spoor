@@ -1,56 +1,56 @@
 {
-  "summary": "4 change(s) in 1 service. Strongest: product-catalog — Failures start here, in \"GET /products/{id}\" (100% of 162 failed traces). Also: product-catalog — Span \"GET /products/{id}\" errors 0.0% → 9.8% (1648 spans). Also: product-catalog — New error log pattern: \"failed to load product \u003cID\u003e: feature flag productCatalogFailure enabled\" (+1 variants). Earliest onset 2026-10-16T08:24:00Z.",
-  "window": "2026-10-16T08:24:00Z/2026-10-16T08:54:00Z",
-  "baseline": "2026-10-16T05:24:00Z/2026-10-16T08:24:00Z (previous, 6 windows)",
+  "summary": "4 change(s) in 1 service. Strongest: product-catalog — Failures start here, in \"GET /products/{id}\" (100% of 160 failed traces). Also: product-catalog — Span \"GET /products/{id}\" errors 0.1% → 8.9% (1795 spans). Also: product-catalog — New error log pattern: \"failed to load product \u003cID\u003e: feature flag productCatalogFailure enabled\". Earliest onset 2026-10-16T08:59:00Z.",
+  "window": "2026-10-16T08:59:00Z/2026-10-16T09:29:00Z",
+  "baseline": "2026-10-16T05:59:00Z/2026-10-16T08:59:00Z (previous, 6 windows)",
   "findings": [
     {
       "service": "product-catalog",
       "signal": "traces",
       "kind": "error_origin",
       "score": 0.99,
-      "title": "Failures start here, in \"GET /products/{id}\" (100% of 162 failed traces)",
-      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T08%3A54%3A00\u0026g0.range_input=30m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+status_code%3A%3D2+%22resource_attr%3Aservice.name%22%3A%3D%22product-catalog%22"
+      "title": "Failures start here, in \"GET /products/{id}\" (100% of 160 failed traces)",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T09%3A29%3A00\u0026g0.range_input=30m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+status_code%3A%3D2+%22resource_attr%3Aservice.name%22%3A%3D%22product-catalog%22"
     },
     {
       "service": "product-catalog",
       "signal": "traces",
       "kind": "span_errors_up",
       "score": 0.99,
-      "title": "Span \"GET /products/{id}\" errors 0.0% → 9.8% (1648 spans)",
-      "before": "0.0%",
-      "after": "9.8%",
-      "onset": "2026-10-16T08:24:06Z",
-      "trace_id": "5653894d0732aeea1e1695bf21c72768",
-      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T08%3A54%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22product-catalog%22"
+      "title": "Span \"GET /products/{id}\" errors 0.1% → 8.9% (1795 spans)",
+      "before": "0.1%",
+      "after": "8.9%",
+      "onset": "2026-10-16T08:59:07Z",
+      "trace_id": "b8207b916b667739bd489ce330efe6ea",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T09%3A29%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22product-catalog%22"
     },
     {
       "service": "product-catalog",
       "signal": "logs",
       "kind": "new_log_pattern",
       "score": 0.95,
-      "title": "New error log pattern: \"failed to load product \u003cID\u003e: feature flag productCatalogFailure enabled\" (+1 variants)",
+      "title": "New error log pattern: \"failed to load product \u003cID\u003e: feature flag productCatalogFailure enabled\"",
       "before": "0",
-      "after": "2119 in window",
-      "onset": "2026-10-16T08:24:00Z",
+      "after": "2225 in window",
+      "onset": "2026-10-16T08:59:00Z",
       "example": "failed to load product \u003cID\u003e: feature flag productCatalogFailure enabled",
-      "evidence_link": "http://localhost:9428/select/vmui/#/?g0.end_input=2026-10-16T08%3A54%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=%22service.name%22%3A%3D%22product-catalog%22+severity_text%3A~%22%28%3Fi%29%5E%28err%7Cerror%7Cfatal%7Ccrit%7Ccritical%7Calert%7Cemerg%7Cemergency%7Cpanic%7Csevere%29%24%22"
+      "evidence_link": "http://localhost:9428/select/vmui/#/?g0.end_input=2026-10-16T09%3A29%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=%22service.name%22%3A%3D%22product-catalog%22+severity_text%3A~%22%28%3Fi%29%5E%28err%7Cerror%7Cfatal%7Ccrit%7Ccritical%7Calert%7Cemerg%7Cemergency%7Cpanic%7Csevere%29%24%22"
     },
     {
       "service": "product-catalog",
       "signal": "metrics",
       "kind": "error_rate_up",
-      "score": 0.68,
-      "title": "Error rate up: 0.0% → 10.3%",
+      "score": 0.67,
+      "title": "Error rate up: 0.0% → 10.0%",
       "before": "0.0%",
-      "after": "10.3%",
-      "onset": "2026-10-16T08:24:00Z",
-      "evidence_link": "http://localhost:8428/vmui/#/?g0.end_input=2026-10-16T08%3A54%3A00\u0026g0.expr=%28sum%28rate%28http_server_request_duration_seconds_count%7Bservice_name%3D%22product-catalog%22%2Chttp_response_status_code%3D~%225..%22%7D%5B30m%5D%29%29+or+vector%280%29%29+%2F+sum%28rate%28http_server_request_duration_seconds_count%7Bservice_name%3D%22product-catalog%22%7D%5B30m%5D%29%29\u0026g0.range_input=210m\u0026g0.relative_time=none"
+      "after": "10.0%",
+      "onset": "2026-10-16T08:59:00Z",
+      "evidence_link": "http://localhost:8428/vmui/#/?g0.end_input=2026-10-16T09%3A29%3A00\u0026g0.expr=%28sum%28rate%28http_server_request_duration_seconds_count%7Bservice_name%3D%22product-catalog%22%2Chttp_response_status_code%3D~%225..%22%7D%5B30m%5D%29%29+or+vector%280%29%29+%2F+sum%28rate%28http_server_request_duration_seconds_count%7Bservice_name%3D%22product-catalog%22%7D%5B30m%5D%29%29\u0026g0.range_input=210m\u0026g0.relative_time=none"
     }
   ],
   "truncated": 0,
   "coverage": {
     "logs": "ok",
-    "logs_lines": "2122 error lines in 2877 log lines",
+    "logs_lines": "2228 error lines in 3062 log lines",
     "metrics": "ok",
     "traces": "ok"
   }

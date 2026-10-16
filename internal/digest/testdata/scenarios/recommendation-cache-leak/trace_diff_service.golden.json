@@ -1,28 +1,28 @@
 {
-  "summary": "2 change(s) in 1 service. Strongest: recommendation — Added latency starts here, in \"GET /recommendations\": self time 18ms → 43ms (100% of added self time). Also: recommendation — Span \"GET /recommendations\" p95 41ms → 93ms (100% of added latency).",
-  "window": "2026-10-15T22:24:00Z/2026-10-15T22:54:00Z",
-  "baseline": "2026-10-15T19:24:00Z/2026-10-15T22:24:00Z (previous, 6 windows)",
+  "summary": "2 change(s) in 1 service. Strongest: recommendation — Added latency starts here, in \"GET /recommendations\": self time 19ms → 44ms (100% of added self time). Also: recommendation — Span \"GET /recommendations\" p95 42ms → 90ms (100% of added latency).",
+  "window": "2026-10-15T22:59:00Z/2026-10-15T23:29:00Z",
+  "baseline": "2026-10-15T19:59:00Z/2026-10-15T22:59:00Z (previous, 6 windows)",
   "findings": [
     {
       "service": "recommendation",
       "signal": "traces",
       "kind": "latency_origin",
       "score": 0.99,
-      "title": "Added latency starts here, in \"GET /recommendations\": self time 18ms → 43ms (100% of added self time)",
-      "before": "18ms",
-      "after": "43ms",
-      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-15T22%3A54%3A00\u0026g0.range_input=30m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22recommendation%22+%22name%22%3A%3D%22GET+%2Frecommendations%22"
+      "title": "Added latency starts here, in \"GET /recommendations\": self time 19ms → 44ms (100% of added self time)",
+      "before": "19ms",
+      "after": "44ms",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-15T23%3A29%3A00\u0026g0.range_input=30m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22recommendation%22+%22name%22%3A%3D%22GET+%2Frecommendations%22"
     },
     {
       "service": "recommendation",
       "signal": "traces",
       "kind": "span_slower",
-      "score": 0.66,
-      "title": "Span \"GET /recommendations\" p95 41ms → 93ms (100% of added latency)",
-      "before": "41ms",
-      "after": "93ms",
-      "trace_id": "a8403b6d46c007dcd0c43395c07117f1",
-      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-15T22%3A54%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22recommendation%22"
+      "score": 0.65,
+      "title": "Span \"GET /recommendations\" p95 42ms → 90ms (100% of added latency)",
+      "before": "42ms",
+      "after": "90ms",
+      "trace_id": "ee7db89463064531a67a1b46abc658ab",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-15T23%3A29%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22recommendation%22"
     }
   ],
   "truncated": 0,

@@ -1,8 +1,8 @@
 {
   "scenario": "recommendation-cache-leak",
   "description": "The recommendation cache leaks memory; latency creeps up with it.",
-  "since": "2026-10-15T22:24:00Z",
-  "until": "2026-10-15T22:54:00Z",
+  "since": "2026-10-15T22:59:00Z",
+  "until": "2026-10-15T23:29:00Z",
   "service": "recommendation",
   "kinds": [
     "resource_up",

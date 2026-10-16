@@ -157,8 +157,10 @@ func (e *Engine) patternQuery(scope string, buckets []window.Range) string {
 		q += fmt.Sprintf(", count() if (_time:[%s, %s)) b%d", b.Start.UTC().Format(time.RFC3339Nano), b.End.UTC().Format(time.RFC3339Nano), i)
 		totals = append(totals, fmt.Sprintf("sum(b%d) spoor_e%d", i, i))
 	}
+	// The pattern breaks ties at the limit, so the same patterns are kept on
+	// every run.
 	return q + ", min(_time) first, any(raw) example | total_stats by (spoor_svc) " + strings.Join(totals, ", ") +
-		fmt.Sprintf(" | sort by (n desc) partition by (spoor_svc) limit %d", patternLimit)
+		fmt.Sprintf(" | sort by (n desc, _msg) partition by (spoor_svc) limit %d", patternLimit)
 }
 
 type patternStat struct {

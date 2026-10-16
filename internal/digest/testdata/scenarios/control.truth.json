@@ -1,6 +1,6 @@
 {
   "scenario": "control",
   "description": "No fault. Nothing should score at or above the report threshold.",
-  "since": "2026-10-15T12:24:00Z",
-  "until": "2026-10-15T12:54:00Z"
+  "since": "2026-10-15T12:59:00Z",
+  "until": "2026-10-15T13:29:00Z"
 }

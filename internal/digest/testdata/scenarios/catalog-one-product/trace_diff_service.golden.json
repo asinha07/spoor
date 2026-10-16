@@ -1,27 +1,27 @@
 {
-  "summary": "2 change(s) in 1 service. Strongest: product-catalog — Failures start here, in \"GET /products/{id}\" (100% of 162 failed traces). Also: product-catalog — Span \"GET /products/{id}\" errors 0.0% → 9.8% (1648 spans). Earliest onset 2026-10-16T08:24:06Z.",
-  "window": "2026-10-16T08:24:00Z/2026-10-16T08:54:00Z",
-  "baseline": "2026-10-16T05:24:00Z/2026-10-16T08:24:00Z (previous, 6 windows)",
+  "summary": "2 change(s) in 1 service. Strongest: product-catalog — Failures start here, in \"GET /products/{id}\" (100% of 160 failed traces). Also: product-catalog — Span \"GET /products/{id}\" errors 0.1% → 8.9% (1795 spans). Earliest onset 2026-10-16T08:59:07Z.",
+  "window": "2026-10-16T08:59:00Z/2026-10-16T09:29:00Z",
+  "baseline": "2026-10-16T05:59:00Z/2026-10-16T08:59:00Z (previous, 6 windows)",
   "findings": [
     {
       "service": "product-catalog",
       "signal": "traces",
       "kind": "error_origin",
       "score": 0.99,
-      "title": "Failures start here, in \"GET /products/{id}\" (100% of 162 failed traces)",
-      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T08%3A54%3A00\u0026g0.range_input=30m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+status_code%3A%3D2+%22resource_attr%3Aservice.name%22%3A%3D%22product-catalog%22"
+      "title": "Failures start here, in \"GET /products/{id}\" (100% of 160 failed traces)",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T09%3A29%3A00\u0026g0.range_input=30m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+status_code%3A%3D2+%22resource_attr%3Aservice.name%22%3A%3D%22product-catalog%22"
     },
     {
       "service": "product-catalog",
       "signal": "traces",
       "kind": "span_errors_up",
-      "score": 0.95,
-      "title": "Span \"GET /products/{id}\" errors 0.0% → 9.8% (1648 spans)",
-      "before": "0.0%",
-      "after": "9.8%",
-      "onset": "2026-10-16T08:24:06Z",
-      "trace_id": "5653894d0732aeea1e1695bf21c72768",
-      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T08%3A54%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22product-catalog%22"
+      "score": 0.94,
+      "title": "Span \"GET /products/{id}\" errors 0.1% → 8.9% (1795 spans)",
+      "before": "0.1%",
+      "after": "8.9%",
+      "onset": "2026-10-16T08:59:07Z",
+      "trace_id": "b8207b916b667739bd489ce330efe6ea",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T09%3A29%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22product-catalog%22"
     }
   ],
   "truncated": 0,

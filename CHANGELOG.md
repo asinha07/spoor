@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (2026-10-16)
 
 Fixes from a trial on real production logs (mixed formats, IDs in messages, Grafana-only access).
 
@@ -32,6 +32,8 @@ Fixes from a trial on real production logs (mixed formats, IDs in messages, Graf
   coverage and timing against direct queries and v0.1.1.
 
 ### Fixed
+- Sorts that feed a limit (log patterns, span names, doctor values) break ties by name, so repeated runs keep
+  the same patterns and report the same diagnostics.
 - Line-total buckets were offset from the baseline sub-windows (VictoriaLogs applies a bucket offset backwards),
   which skewed error share and `log_lines_change`. An integration test now checks the window total against a direct
   count.

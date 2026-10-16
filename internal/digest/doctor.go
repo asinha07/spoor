@@ -199,7 +199,7 @@ func (e *Engine) doctorLogs(ctx context.Context, r window.Range, add func(string
 	var sevFields []string
 	for _, f := range candidates(names, severityFieldHints, "level", "severity") {
 		share := hits[f] / total
-		rows, err := src.Query(ctx, "* | stats by ("+backend.Quote(f)+") count() n | sort by (n desc) | limit 8", r.Start, r.End, 0)
+		rows, err := src.Query(ctx, "* | stats by ("+backend.Quote(f)+") count() n | sort by (n desc, "+backend.Quote(f)+") | limit 8", r.Start, r.End, 0)
 		if err != nil {
 			continue
 		}

@@ -1,8 +1,8 @@
 {
   "scenario": "kafka-queue-problems",
   "description": "The accounting consumer falls behind on the orders topic.",
-  "since": "2026-10-15T17:24:00Z",
-  "until": "2026-10-15T17:54:00Z",
+  "since": "2026-10-15T17:59:00Z",
+  "until": "2026-10-15T18:29:00Z",
   "service": "accounting",
   "kinds": [
     "resource_up",

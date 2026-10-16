@@ -1,21 +1,21 @@
 {
-  "summary": "No significant change in recommendation during 2026-10-15T22:24:00Z/2026-10-15T22:54:00Z compared with the previous baseline. Errors present before this window and not significantly up, so not a new problem: recommendation (6 error lines now vs 6.5 usual, -8%, all log lines +11%; e.g. \"call to catalog.GetProduct failed with status \u003cN\u003e\").",
-  "window": "2026-10-15T22:24:00Z/2026-10-15T22:54:00Z",
-  "baseline": "2026-10-15T19:24:00Z/2026-10-15T22:24:00Z (previous, 6 windows)",
+  "summary": "No significant change in recommendation during 2026-10-15T22:59:00Z/2026-10-15T23:29:00Z compared with the previous baseline. Errors present before this window and not significantly up, so not a new problem: recommendation (12 error lines now vs 7.5 usual, +60%, all log lines -9%; e.g. \"call to catalog.GetProduct failed with status \u003cN\u003e\").",
+  "window": "2026-10-15T22:59:00Z/2026-10-15T23:29:00Z",
+  "baseline": "2026-10-15T19:59:00Z/2026-10-15T22:59:00Z (previous, 6 windows)",
   "findings": [],
   "steady_errors": [
     {
       "service": "recommendation",
-      "errors_now": 6,
-      "errors_usual": 6.5,
-      "change": "-8%",
-      "log_lines_change": "+11%",
+      "errors_now": 12,
+      "errors_usual": 7.5,
+      "change": "+60%",
+      "log_lines_change": "-9%",
       "example": "call to catalog.GetProduct failed with status \u003cN\u003e"
     }
   ],
   "truncated": 0,
   "coverage": {
     "logs": "ok",
-    "logs_lines": "6 error lines in 342 log lines"
+    "logs_lines": "12 error lines in 270 log lines"
   }
 }
