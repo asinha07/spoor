@@ -3,7 +3,7 @@
   "name": "io.github.asinha07/spoor",
   "title": "Spoor",
   "description": "What changed across metrics, logs and traces, and where it started (VictoriaMetrics stack).",
-  "websiteUrl": "https://github.com/asinha07/spoor",
+  "websiteUrl": "https://telespoor.com",
   "repository": {
     "url": "https://github.com/asinha07/spoor",
     "source": "github"

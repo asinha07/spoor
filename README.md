@@ -4,6 +4,7 @@
 
 [![CI](https://github.com/asinha07/spoor/actions/workflows/ci.yml/badge.svg)](https://github.com/asinha07/spoor/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![asinha07/spoor MCP server](https://glama.ai/mcp/servers/asinha07/spoor/badges/score.svg)](https://glama.ai/mcp/servers/asinha07/spoor)
 
 Website: **[telespoor.com](https://telespoor.com)**
 

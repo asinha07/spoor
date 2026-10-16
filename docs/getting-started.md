@@ -160,6 +160,33 @@ connected.
 
 Then ask, for example: *"Checkout errors went up in the last 30 minutes. What changed, and where did it start?"*
 
+**Codex:**
+
+```sh
+codex mcp add spoor \
+  --env SPOOR_METRICS_URL=http://localhost:8428 \
+  --env SPOOR_LOGS_URL=http://localhost:9428 \
+  --env SPOOR_TRACES_URL=http://localhost:10428 \
+  -- /absolute/path/to/spoor serve
+# with a config file:
+codex mcp add spoor --env SPOOR_CONFIG=/absolute/path/to/spoor.yaml -- /absolute/path/to/spoor serve
+```
+
+Or edit `~/.codex/config.toml` directly. Use full paths (`~` is not expanded there), and raise the tool timeout:
+a scan of every service on a busy system can take half a minute, longer than Codex waits by default.
+
+```toml
+[mcp_servers.spoor]
+command = "/absolute/path/to/spoor"
+args = ["serve"]
+tool_timeout_sec = 120
+
+[mcp_servers.spoor.env]
+SPOOR_CONFIG = "/absolute/path/to/spoor.yaml"
+```
+
+`codex mcp list` shows it; `/mcp` inside Codex lists the four tools.
+
 **Cursor, Claude Desktop, Windsurf and other clients** take a JSON config
 ([`examples/mcp.json`](../examples/mcp.json)). For Cursor, put it in `.cursor/mcp.json`; for Claude Desktop, in
 `claude_desktop_config.json`:

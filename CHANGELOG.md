@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Website at [telespoor.com](https://telespoor.com): install, connect (Claude Code, Codex, Cursor, Claude Desktop,
+  VS Code, shared HTTP), tools and benchmark on one page. Source in `site/`.
+- Codex setup in the getting-started guide.
+
+### Changed
+- `server.json` points `websiteUrl` at telespoor.com (takes effect in the registry with the next release).
+
 ## 0.2.1 (2026-10-16)
 
 ### Changed
