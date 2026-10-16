@@ -31,6 +31,8 @@ On macOS, if Gatekeeper blocks it: `xattr -d com.apple.quarantine ./spoor`.
 ```sh
 docker build -t spoor --build-arg VERSION=$(git describe --tags --always) .
 docker run --rm spoor version
+docker run -i --rm spoor        # MCP over stdio (the image default)
+docker run --rm -p 8080:8080 -e SPOOR_HTTP_TOKEN=… spoor serve --http :8080   # shared HTTP server
 ```
 
 Released images are published as `ghcr.io/asinha07/spoor:<version>`. If Docker Hub rate-limits the build, add

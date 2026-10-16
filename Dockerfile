@@ -13,4 +13,7 @@ FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/spoor /usr/local/bin/spoor
 EXPOSE 8080
 ENTRYPOINT ["spoor"]
-CMD ["serve", "--http", ":8080"]
+# MCP over stdio by default, the convention for MCP images:
+#   docker run -i --rm ghcr.io/asinha07/spoor
+# For a shared HTTP server: docker run -p 8080:8080 ghcr.io/asinha07/spoor serve --http :8080
+CMD ["serve"]

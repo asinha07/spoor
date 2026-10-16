@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 (2026-10-16)
+
+### Changed
+- The container image starts MCP over stdio by default (`CMD ["serve"]`), the convention for MCP images, so MCP
+  directories and `docker run -i ghcr.io/asinha07/spoor` work as is. For a shared HTTP server pass
+  `serve --http :8080`; the Kubernetes, Compose and systemd files already do.
+
 ## 0.2.0 (2026-10-16)
 
 Fixes from a trial on real production logs (mixed formats, IDs in messages, Grafana-only access).
