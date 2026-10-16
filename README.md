@@ -5,6 +5,8 @@
 [![CI](https://github.com/asinha07/spoor/actions/workflows/ci.yml/badge.svg)](https://github.com/asinha07/spoor/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
+Website: **[telespoor.com](https://telespoor.com)**
+
 Spoor is an open-source [MCP](https://modelcontextprotocol.io) server and CLI for the VictoriaMetrics observability
 stack (VictoriaMetrics, VictoriaLogs, VictoriaTraces). When something breaks, an agent asks Spoor *"what changed in
 the last 30 minutes?"* and gets back a short, ranked answer across metrics, logs and traces, with the service where

@@ -1,0 +1,8 @@
+[Unit]
+Description=Pull the latest Spoor website from GitHub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/git -C /opt/spoor-site pull --ff-only --quiet

@@ -1,0 +1,23 @@
+# Serves site/public as a static site. Nginx Proxy Manager (or any reverse
+# proxy on the same Docker network) terminates TLS and forwards to
+# spoor-site:80. The checkout is mounted read-only, so `git pull` on the host
+# updates the live site without restarting the container.
+#
+#   cd /opt/spoor-site/site/deploy && docker compose up -d
+services:
+  spoor-site:
+    image: nginx:1.27-alpine
+    container_name: spoor-site
+    restart: unless-stopped
+    expose:
+      - "80"
+    volumes:
+      - ../public:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-docker_homeserver}
