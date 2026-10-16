@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spoor
+  labels:
+    app.kubernetes.io/name: spoor
+spec:
+  # Spoor is stateless: scale replicas freely. Each MCP session is pinned to the
+  # replica that started it, so keep sessionAffinity on the Service or use
+  # sticky routing in your ingress.
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: spoor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: spoor
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: spoor
+          image: ghcr.io/asinha07/spoor:latest   # pin a version tag in production
+          args: ["serve", "--http", ":8080", "--config", "/etc/spoor/spoor.yaml", "--log-format", "json"]
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: spoor-secrets
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 512Mi   # attribution holds up to 50k spans per call
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/spoor
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: spoor-config

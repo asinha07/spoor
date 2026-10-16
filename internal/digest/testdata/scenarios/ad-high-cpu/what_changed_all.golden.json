@@ -1,0 +1,92 @@
+{
+  "summary": "6 change(s) in 2 services. Strongest: ad — Added latency starts here, in \"GET /ads\": self time 12ms → 74ms (100% of added self time). Also: ad — Span \"GET /ads\" p95 19ms → 119ms (100% of added latency). Also: ad — CPU up: 0.08 cores → 0.71 cores. Earliest onset 2026-10-15T22:52:00Z. Errors at their usual rate (not new) in: product-catalog, recommendation.",
+  "window": "2026-10-15T22:52:00Z/2026-10-15T23:22:00Z",
+  "baseline": "2026-10-15T19:52:00Z/2026-10-15T22:52:00Z (previous, 6 windows)",
+  "findings": [
+    {
+      "service": "ad",
+      "signal": "traces",
+      "kind": "latency_origin",
+      "score": 0.99,
+      "title": "Added latency starts here, in \"GET /ads\": self time 12ms → 74ms (100% of added self time)",
+      "before": "12ms",
+      "after": "74ms",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-15T23%3A22%3A00\u0026g0.range_input=30m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22ad%22+%22name%22%3A%3D%22GET+%2Fads%22"
+    },
+    {
+      "service": "ad",
+      "signal": "traces",
+      "kind": "span_slower",
+      "score": 0.87,
+      "title": "Span \"GET /ads\" p95 19ms → 119ms (100% of added latency)",
+      "before": "19ms",
+      "after": "119ms",
+      "trace_id": "801bf0a3c1a99df165596a7b554ccc7b",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-15T23%3A22%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22ad%22"
+    },
+    {
+      "service": "ad",
+      "signal": "metrics",
+      "kind": "resource_up",
+      "score": 0.81,
+      "title": "CPU up: 0.08 cores → 0.71 cores",
+      "before": "0.08 cores",
+      "after": "0.71 cores",
+      "onset": "2026-10-15T22:52:00Z",
+      "evidence_link": "http://localhost:8428/vmui/#/?g0.end_input=2026-10-15T23%3A22%3A00\u0026g0.expr=sum%28rate%28process_cpu_seconds_total%7Bservice_name%3D%22ad%22%7D%5B30m%5D%29%29\u0026g0.range_input=210m\u0026g0.relative_time=none"
+    },
+    {
+      "service": "ad",
+      "signal": "metrics",
+      "kind": "latency_up",
+      "score": 0.74,
+      "title": "P95 latency up: 24ms → 191ms",
+      "before": "24ms",
+      "after": "191ms",
+      "onset": "2026-10-15T22:52:00Z",
+      "evidence_link": "http://localhost:8428/vmui/#/?g0.end_input=2026-10-15T23%3A22%3A00\u0026g0.expr=histogram_quantile%280.95%2C+sum%28rate%28http_server_request_duration_seconds_bucket%7Bservice_name%3D%22ad%22%7D%5B30m%5D%29%29+by+%28le%29%29\u0026g0.range_input=210m\u0026g0.relative_time=none"
+    },
+    {
+      "service": "frontend",
+      "signal": "traces",
+      "kind": "span_slower",
+      "score": 0.65,
+      "title": "Span \"ad.GetAds\" p95 20ms → 120ms (50% of added latency) — added latency originates in ad",
+      "before": "20ms",
+      "after": "120ms",
+      "trace_id": "801bf0a3c1a99df165596a7b554ccc7b",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-15T23%3A22%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22frontend%22"
+    },
+    {
+      "service": "frontend",
+      "signal": "traces",
+      "kind": "span_slower",
+      "score": 0.64,
+      "title": "Span \"GET /api/ads\" p95 24ms → 123ms (50% of added latency) — added latency originates in ad",
+      "before": "24ms",
+      "after": "123ms",
+      "trace_id": "801bf0a3c1a99df165596a7b554ccc7b",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-15T23%3A22%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22frontend%22"
+    }
+  ],
+  "steady_errors": [
+    {
+      "service": "product-catalog",
+      "errors_now": 7,
+      "errors_usual": 10.7,
+      "example": "failed to load product L9ECAV7KIM: database query returned error"
+    },
+    {
+      "service": "recommendation",
+      "errors_now": 7,
+      "errors_usual": 8.2,
+      "example": "call to catalog.GetProduct failed with status \u003cN\u003e"
+    }
+  ],
+  "truncated": 0,
+  "coverage": {
+    "logs": "ok",
+    "metrics": "ok",
+    "traces": "ok"
+  }
+}

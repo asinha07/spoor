@@ -1,0 +1,19 @@
+# Replaces the OpenTelemetry Demo's (empty) src/otel-collector/otelcol-config-extras.yml.
+# Sends all three signals to the Victoria stack. Pipeline exporter lists replace
+# the base config's lists, so the base exporters (debug, span_metrics) are repeated.
+exporters:
+  otlp_http/victoriametrics:
+    metrics_endpoint: http://victoriametrics:8428/opentelemetry/v1/metrics
+  otlp_http/victorialogs:
+    logs_endpoint: http://victorialogs:9428/insert/opentelemetry/v1/logs
+  otlp_http/victoriatraces:
+    traces_endpoint: http://victoriatraces:10428/insert/opentelemetry/v1/traces
+
+service:
+  pipelines:
+    traces:
+      exporters: [debug, span_metrics, otlp_http/victoriatraces]
+    metrics:
+      exporters: [debug, otlp_http/victoriametrics]
+    logs:
+      exporters: [debug, otlp_http/victorialogs]

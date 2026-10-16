@@ -1,0 +1,23 @@
+{
+  "summary": "1 change(s) in 1 service. Strongest: product-catalog — New error log pattern: \"failed to load product OLJCESPC7Z: feature flag productCatalogFailure enabled\". Earliest onset 2026-10-16T03:52:00Z.",
+  "window": "2026-10-16T03:52:00Z/2026-10-16T04:22:00Z",
+  "baseline": "2026-10-16T00:52:00Z/2026-10-16T03:52:00Z (previous, 6 windows)",
+  "findings": [
+    {
+      "service": "product-catalog",
+      "signal": "logs",
+      "kind": "new_log_pattern",
+      "score": 0.9,
+      "title": "New error log pattern: \"failed to load product OLJCESPC7Z: feature flag productCatalogFailure enabled\"",
+      "before": "0",
+      "after": "2219 in window",
+      "onset": "2026-10-16T03:52:00Z",
+      "example": "failed to load product OLJCESPC7Z: feature flag productCatalogFailure enabled",
+      "evidence_link": "http://localhost:9428/select/vmui/#/?g0.end_input=2026-10-16T04%3A22%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=%22service.name%22%3A%3D%22product-catalog%22+severity_text%3A~%22%28%3Fi%29%5E%28error%7Cfatal%7Ccritical%29%24%22"
+    }
+  ],
+  "truncated": 0,
+  "coverage": {
+    "logs": "ok"
+  }
+}

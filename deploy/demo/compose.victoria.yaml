@@ -1,0 +1,31 @@
+# Adds VictoriaMetrics, VictoriaLogs and VictoriaTraces to the OpenTelemetry
+# Demo (v3.x) as its observability backend, in place of the demo's own
+# Jaeger/Prometheus/OpenSearch stack. From the opentelemetry-demo directory:
+#
+#   docker compose --env-file .env -f compose.yaml -f compose.full.yaml \
+#     -f compose.victoria.yaml up -d
+services:
+  victoriametrics:
+    image: quay.io/victoriametrics/victoria-metrics:v1.154.0
+    container_name: victoriametrics
+    command: ["-retentionPeriod=30d", "-opentelemetry.usePrometheusNaming"]
+    ports: ["8428:8428"]
+  victorialogs:
+    image: quay.io/victoriametrics/victoria-logs:v1.53.0
+    container_name: victorialogs
+    command: ["-retentionPeriod=7d"]
+    ports: ["9428:9428"]
+  victoriatraces:
+    image: quay.io/victoriametrics/victoria-traces:v0.12.0
+    container_name: victoriatraces
+    command: ["-retentionPeriod=7d"]
+    ports: ["10428:10428"]
+
+  otel-collector:
+    depends_on:
+      victoriametrics:
+        condition: service_started
+      victorialogs:
+        condition: service_started
+      victoriatraces:
+        condition: service_started

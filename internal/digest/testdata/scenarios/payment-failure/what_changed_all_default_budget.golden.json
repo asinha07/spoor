@@ -1,0 +1,115 @@
+{
+  "summary": "11 change(s) in 3 services. Strongest: payment — Failures start here, in \"POST /charge\" (100% of 80 failed traces). Also: payment — Span \"POST /charge\" errors 0.0% → 36.4% (220 spans). Also: payment — New error log pattern: \"charge failed: card processor returned \u003cN\u003e for order \u003cN\u003e\". Earliest onset 2026-10-16T08:52:00Z. Errors at their usual rate (not new) in: product-catalog, recommendation, ad.",
+  "window": "2026-10-16T08:52:00Z/2026-10-16T09:22:00Z",
+  "baseline": "2026-10-16T05:52:00Z/2026-10-16T08:52:00Z (previous, 6 windows)",
+  "findings": [
+    {
+      "service": "payment",
+      "signal": "traces",
+      "kind": "error_origin",
+      "score": 0.99,
+      "title": "Failures start here, in \"POST /charge\" (100% of 80 failed traces)"
+    },
+    {
+      "service": "payment",
+      "signal": "traces",
+      "kind": "span_errors_up",
+      "score": 0.99,
+      "title": "Span \"POST /charge\" errors 0.0% → 36.4% (220 spans)",
+      "before": "0.0%",
+      "after": "36.4%",
+      "onset": "2026-10-16T08:52:09Z",
+      "trace_id": "068615e89e4f96cf44a3577b70755f2d"
+    },
+    {
+      "service": "payment",
+      "signal": "logs",
+      "kind": "new_log_pattern",
+      "score": 0.94,
+      "title": "New error log pattern: \"charge failed: card processor returned \u003cN\u003e for order \u003cN\u003e\"",
+      "before": "0",
+      "after": "1151 in window",
+      "onset": "2026-10-16T08:52:02Z"
+    },
+    {
+      "service": "payment",
+      "signal": "metrics",
+      "kind": "error_rate_up",
+      "score": 0.92,
+      "title": "Error rate up: 0.1% → 40.8%",
+      "before": "0.1%",
+      "after": "40.8%",
+      "onset": "2026-10-16T08:52:00Z"
+    },
+    {
+      "service": "checkout",
+      "signal": "logs",
+      "kind": "spiking_log_pattern",
+      "score": 0.74,
+      "title": "Error log pattern spiking: \"call to payment.Charge failed with status \u003cN\u003e\" — originates in payment",
+      "before": "3.33 per window",
+      "after": "1151 in window",
+      "onset": "2026-10-16T08:52:02Z"
+    },
+    {
+      "service": "frontend",
+      "signal": "logs",
+      "kind": "spiking_log_pattern",
+      "score": 0.74,
+      "title": "Error log pattern spiking: \"call to checkout.PlaceOrder failed with status \u003cN\u003e\" — originates in payment",
+      "before": "4.67 per window",
+      "after": "1152 in window",
+      "onset": "2026-10-16T08:52:02Z"
+    },
+    {
+      "service": "checkout",
+      "signal": "traces",
+      "kind": "span_errors_up",
+      "score": 0.72,
+      "title": "Span \"POST /checkout\" errors 0.0% → 36.4% (220 spans) — originates in payment",
+      "before": "0.0%",
+      "after": "36.4%",
+      "onset": "2026-10-16T08:52:09Z",
+      "trace_id": "068615e89e4f96cf44a3577b70755f2d"
+    },
+    {
+      "service": "checkout",
+      "signal": "traces",
+      "kind": "span_errors_up",
+      "score": 0.72,
+      "title": "Span \"payment.Charge\" errors 0.0% → 36.4% (220 spans) — originates in payment",
+      "before": "0.0%",
+      "after": "36.4%",
+      "onset": "2026-10-16T08:52:09Z",
+      "trace_id": "068615e89e4f96cf44a3577b70755f2d"
+    },
+    {
+      "service": "frontend",
+      "signal": "traces",
+      "kind": "span_errors_up",
+      "score": 0.72,
+      "title": "Span \"POST /api/checkout\" errors 0.1% → 36.8% (220 spans) — originates in payment",
+      "before": "0.1%",
+      "after": "36.8%",
+      "onset": "2026-10-16T08:52:09Z",
+      "trace_id": "068615e89e4f96cf44a3577b70755f2d"
+    },
+    {
+      "service": "frontend",
+      "signal": "traces",
+      "kind": "span_errors_up",
+      "score": 0.72,
+      "title": "Span \"checkout.PlaceOrder\" errors 0.0% → 36.4% (220 spans) — originates in payment",
+      "before": "0.0%",
+      "after": "36.4%",
+      "onset": "2026-10-16T08:52:09Z",
+      "trace_id": "068615e89e4f96cf44a3577b70755f2d"
+    }
+  ],
+  "truncated": 1,
+  "coverage": {
+    "logs": "ok",
+    "metrics": "ok",
+    "traces": "ok"
+  }
+}

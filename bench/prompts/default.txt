@@ -1,0 +1,8 @@
+Users report problems with the online shop between {{SINCE}} and {{UNTIL}} (UTC). Some requests are failing or slow, but nobody knows why.
+
+Using only the observability tools available to you, find the root cause. Name the service where the problem starts and what is going wrong there. Distinguish the cause from services that are only affected by it.
+
+If you find no real problem, say so.
+
+End your answer with exactly one line in this form:
+ROOT CAUSE: <service name or "none"> — <one-line description of what went wrong>

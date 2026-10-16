@@ -1,0 +1,48 @@
+# Spoor configuration reference. Every key is optional; these are the defaults.
+# Query templates receive {{.Service}} (already quoted) and {{.Window}} (e.g. 30m).
+
+timeout: 20s
+max_services: 25            # cap for all-services scans
+ignore_services: []         # e.g. [load-generator, otel-collector]: skipped in scans and attribution
+
+metrics:
+  url: http://localhost:8428
+  bearer_token: ""
+  ui_url: ""                 # base for evidence links; defaults to url
+  service_label: service_name
+  request_rate: 'sum(rate(http_server_request_duration_seconds_count{service_name={{.Service}}}[{{.Window}}]))'
+  error_rate: '(sum(rate(http_server_request_duration_seconds_count{service_name={{.Service}},http_response_status_code=~"5.."}[{{.Window}}])) or vector(0)) / sum(rate(http_server_request_duration_seconds_count{service_name={{.Service}}}[{{.Window}}]))'
+  latency_p95: 'histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket{service_name={{.Service}}}[{{.Window}}])) by (le))'
+  resources:
+    - name: cpu
+      unit: cores
+      query: 'sum(rate(process_cpu_seconds_total{service_name={{.Service}}}[{{.Window}}]))'
+    - name: memory
+      unit: bytes
+      query: 'max(max_over_time(process_resident_memory_bytes{service_name={{.Service}}}[{{.Window}}]))'
+    - name: consumer_lag
+      unit: messages
+      query: 'max(max_over_time(kafka_consumer_lag{service_name={{.Service}}}[{{.Window}}]))'
+
+logs:
+  url: http://localhost:9428
+  bearer_token: ""
+  ui_url: ""
+  service_field: service.name
+  error_filter: 'severity_text:~"(?i)^(error|fatal|critical)$"'
+
+traces:
+  url: http://localhost:10428
+  bearer_token: ""
+  ui_url: ""
+  service_field: resource_attr:service.name
+  name_field: name
+  duration_field: duration   # nanoseconds
+  error_filter: 'status_code:=2'
+
+scoring:
+  report_threshold: 0.5      # 0.5 = robust z-score of 3
+  baseline_sub_windows: 6    # history used to measure normal variation
+  min_request_rate: 0.05     # req/s; quieter services skip error/latency scoring
+  min_pattern_count: 3       # hits a log pattern needs in the window
+  min_spans: 5               # spans a span name needs in window and baseline

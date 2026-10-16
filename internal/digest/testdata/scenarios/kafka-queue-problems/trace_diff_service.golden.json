@@ -1,0 +1,32 @@
+{
+  "summary": "2 change(s) in 1 service. Strongest: accounting — Added latency starts here, in \"orders process\": self time 16ms → 78ms (100% of added self time). Also: accounting — Span \"orders process\" p95 24ms → 129ms (100% of added latency).",
+  "window": "2026-10-15T12:52:00Z/2026-10-15T13:22:00Z",
+  "baseline": "2026-10-15T09:52:00Z/2026-10-15T12:52:00Z (previous, 6 windows)",
+  "findings": [
+    {
+      "service": "accounting",
+      "signal": "traces",
+      "kind": "latency_origin",
+      "score": 0.99,
+      "title": "Added latency starts here, in \"orders process\": self time 16ms → 78ms (100% of added self time)",
+      "before": "16ms",
+      "after": "78ms",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-15T13%3A22%3A00\u0026g0.range_input=30m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22accounting%22+%22name%22%3A%3D%22orders+process%22"
+    },
+    {
+      "service": "accounting",
+      "signal": "traces",
+      "kind": "span_slower",
+      "score": 0.86,
+      "title": "Span \"orders process\" p95 24ms → 129ms (100% of added latency)",
+      "before": "24ms",
+      "after": "129ms",
+      "trace_id": "6bc739da55413b8130c76738511bbcf2",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-15T13%3A22%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22accounting%22"
+    }
+  ],
+  "truncated": 0,
+  "coverage": {
+    "traces": "ok"
+  }
+}

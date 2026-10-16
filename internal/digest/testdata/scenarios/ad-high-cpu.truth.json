@@ -1,0 +1,13 @@
+{
+  "scenario": "ad-high-cpu",
+  "description": "The ad service saturates its CPU and slows down.",
+  "since": "2026-10-15T22:52:00Z",
+  "until": "2026-10-15T23:22:00Z",
+  "service": "ad",
+  "kinds": [
+    "resource_up",
+    "latency_up",
+    "span_slower"
+  ],
+  "detail": "ad service: CPU saturation"
+}

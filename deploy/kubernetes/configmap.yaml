@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spoor-config
+  labels:
+    app.kubernetes.io/name: spoor
+data:
+  # Point these at your VictoriaMetrics, VictoriaLogs and VictoriaTraces
+  # services (in-cluster DNS names shown). For clusters, use vmselect /
+  # vlselect / vtselect. See docs/configuration.md for every option.
+  spoor.yaml: |
+    metrics:
+      url: http://victoriametrics.monitoring.svc:8428
+      # ui_url: https://vmui.example.com   # base for evidence links people can open
+    logs:
+      url: http://victorialogs.monitoring.svc:9428
+    traces:
+      url: http://victoriatraces.monitoring.svc:10428
+    # Traffic generators and infrastructure to leave out of scans.
+    ignore_services: []

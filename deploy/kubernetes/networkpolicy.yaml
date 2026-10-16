@@ -1,0 +1,24 @@
+# Optional hardening: only pods labelled spoor-client=true (your agents or
+# gateway) and the monitoring namespace may reach Spoor. Spoor itself only
+# needs egress to the three backends and DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: spoor
+  labels:
+    app.kubernetes.io/name: spoor
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: spoor
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              spoor-client: "true"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: 8080

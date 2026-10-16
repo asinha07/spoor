@@ -1,0 +1,38 @@
+version: 2
+project_name: spoor
+
+builds:
+  - id: spoor
+    main: ./cmd/spoor
+    binary: spoor
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ldflags: ["-s -w -X main.version={{.Version}}"]
+  - id: spoorgen
+    main: ./cmd/spoorgen
+    binary: spoorgen
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ldflags: ["-s -w"]
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files: [LICENSE, README.md, examples/*]
+
+dockers_v2:
+  - images: ["ghcr.io/asinha07/spoor"]
+    tags: ["{{.Version}}", "latest"]
+    dockerfile: Dockerfile.release
+    ids: [spoor]
+    platforms: [linux/amd64, linux/arm64]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github-native

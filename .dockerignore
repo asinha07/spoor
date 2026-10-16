@@ -1,0 +1,6 @@
+bin
+dist
+bench/results
+scenarios/out
+internal/digest/testdata
+.git

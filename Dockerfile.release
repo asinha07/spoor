@@ -1,0 +1,7 @@
+# Used by GoReleaser: the binary is already built for the target platform.
+FROM gcr.io/distroless/static-debian12:nonroot
+ARG TARGETPLATFORM
+COPY ${TARGETPLATFORM}/spoor /usr/local/bin/spoor
+EXPOSE 8080
+ENTRYPOINT ["spoor"]
+CMD ["serve", "--http", ":8080"]

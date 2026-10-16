@@ -1,0 +1,23 @@
+{
+  "summary": "1 change(s) in 1 service. Strongest: payment — New error log pattern: \"charge failed: card processor returned \u003cN\u003e for order \u003cN\u003e\". Earliest onset 2026-10-16T08:52:02Z.",
+  "window": "2026-10-16T08:52:00Z/2026-10-16T09:22:00Z",
+  "baseline": "2026-10-16T05:52:00Z/2026-10-16T08:52:00Z (previous, 6 windows)",
+  "findings": [
+    {
+      "service": "payment",
+      "signal": "logs",
+      "kind": "new_log_pattern",
+      "score": 0.89,
+      "title": "New error log pattern: \"charge failed: card processor returned \u003cN\u003e for order \u003cN\u003e\"",
+      "before": "0",
+      "after": "1151 in window",
+      "onset": "2026-10-16T08:52:02Z",
+      "example": "charge failed: card processor returned 503 for order 79643",
+      "evidence_link": "http://localhost:9428/select/vmui/#/?g0.end_input=2026-10-16T09%3A22%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=%22service.name%22%3A%3D%22payment%22+severity_text%3A~%22%28%3Fi%29%5E%28error%7Cfatal%7Ccritical%29%24%22"
+    }
+  ],
+  "truncated": 0,
+  "coverage": {
+    "logs": "ok"
+  }
+}

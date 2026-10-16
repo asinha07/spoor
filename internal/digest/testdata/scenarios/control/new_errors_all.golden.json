@@ -1,0 +1,30 @@
+{
+  "summary": "No significant change in 7 services during 2026-10-15T07:52:00Z/2026-10-15T08:22:00Z compared with the previous baseline. Errors at their usual rate, present before this window and not a new problem: frontend (29 error lines now vs 31.8 per window before, e.g. \"call to catalog.GetProduct failed with status \u003cN\u003e\"); product-catalog (8 error lines now vs 10.2 per window before, e.g. \"failed to load product LS4PSXUNUM: database query returned error\"); ad (5 error lines now vs 5 per window before, e.g. \"ad index refresh failed\").",
+  "window": "2026-10-15T07:52:00Z/2026-10-15T08:22:00Z",
+  "baseline": "2026-10-15T04:52:00Z/2026-10-15T07:52:00Z (previous, 6 windows)",
+  "findings": [],
+  "steady_errors": [
+    {
+      "service": "frontend",
+      "errors_now": 29,
+      "errors_usual": 31.8,
+      "example": "call to catalog.GetProduct failed with status \u003cN\u003e"
+    },
+    {
+      "service": "product-catalog",
+      "errors_now": 8,
+      "errors_usual": 10.2,
+      "example": "failed to load product LS4PSXUNUM: database query returned error"
+    },
+    {
+      "service": "ad",
+      "errors_now": 5,
+      "errors_usual": 5,
+      "example": "ad index refresh failed"
+    }
+  ],
+  "truncated": 0,
+  "coverage": {
+    "logs": "ok"
+  }
+}

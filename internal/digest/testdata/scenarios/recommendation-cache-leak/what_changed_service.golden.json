@@ -1,0 +1,45 @@
+{
+  "summary": "3 change(s) in 1 service. Strongest: recommendation — Added latency starts here, in \"GET /recommendations\": self time 18ms → 45ms (100% of added self time). Also: recommendation — Memory up: 317 MiB → 1.49 GiB. Also: recommendation — Span \"GET /recommendations\" p95 42ms → 93ms (100% of added latency). Earliest onset 2026-10-15T18:04:00Z.",
+  "window": "2026-10-15T17:52:00Z/2026-10-15T18:22:00Z",
+  "baseline": "2026-10-15T14:52:00Z/2026-10-15T17:52:00Z (previous, 6 windows)",
+  "findings": [
+    {
+      "service": "recommendation",
+      "signal": "traces",
+      "kind": "latency_origin",
+      "score": 0.99,
+      "title": "Added latency starts here, in \"GET /recommendations\": self time 18ms → 45ms (100% of added self time)",
+      "before": "18ms",
+      "after": "45ms",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-15T18%3A22%3A00\u0026g0.range_input=30m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22recommendation%22+%22name%22%3A%3D%22GET+%2Frecommendations%22"
+    },
+    {
+      "service": "recommendation",
+      "signal": "metrics",
+      "kind": "resource_up",
+      "score": 0.84,
+      "title": "Memory up: 317 MiB → 1.49 GiB",
+      "before": "317 MiB",
+      "after": "1.49 GiB",
+      "onset": "2026-10-15T18:04:00Z",
+      "evidence_link": "http://localhost:8428/vmui/#/?g0.end_input=2026-10-15T18%3A22%3A00\u0026g0.expr=max%28max_over_time%28process_resident_memory_bytes%7Bservice_name%3D%22recommendation%22%7D%5B30m%5D%29%29\u0026g0.range_input=210m\u0026g0.relative_time=none"
+    },
+    {
+      "service": "recommendation",
+      "signal": "traces",
+      "kind": "span_slower",
+      "score": 0.66,
+      "title": "Span \"GET /recommendations\" p95 42ms → 93ms (100% of added latency)",
+      "before": "42ms",
+      "after": "93ms",
+      "trace_id": "9a2d42749035e22d5a16cd6ebfd3b8a0",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-15T18%3A22%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22recommendation%22"
+    }
+  ],
+  "truncated": 0,
+  "coverage": {
+    "logs": "ok",
+    "metrics": "ok",
+    "traces": "ok"
+  }
+}

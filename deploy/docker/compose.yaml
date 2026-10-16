@@ -1,0 +1,18 @@
+# Spoor as an HTTP MCP service next to an existing Victoria stack.
+#   SPOOR_HTTP_TOKEN=$(openssl rand -hex 32) docker compose -f deploy/docker/compose.yaml up -d
+# Uses the published image when it can be pulled, otherwise builds from this repo.
+# Clients connect to http://<host>:8080/mcp with "Authorization: Bearer $SPOOR_HTTP_TOKEN".
+services:
+  spoor:
+    image: ghcr.io/asinha07/spoor:latest   # pin a release tag in production
+    build:
+      context: ../..
+    command: ["serve", "--http", ":8080", "--config", "/etc/spoor/spoor.yaml", "--log-format", "json"]
+    environment:
+      SPOOR_HTTP_TOKEN: ${SPOOR_HTTP_TOKEN:?set SPOOR_HTTP_TOKEN}
+    volumes:
+      - ./spoor.yaml:/etc/spoor/spoor.yaml:ro
+    ports: ["8080:8080"]
+    extra_hosts: ["host.docker.internal:host-gateway"]   # lets Linux reach backends on the Docker host
+    read_only: true
+    restart: unless-stopped

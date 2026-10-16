@@ -1,0 +1,9 @@
+# Backend URLs as seen from the Spoor container. host.docker.internal reaches
+# services on the Docker host (compose.yaml maps it on Linux too). If the
+# backends run in Docker, put Spoor on their network and use service names.
+metrics:
+  url: http://host.docker.internal:8428
+logs:
+  url: http://host.docker.internal:9428
+traces:
+  url: http://host.docker.internal:10428

@@ -1,0 +1,17 @@
+# Optional: lets the VictoriaMetrics operator scrape Spoor's own /metrics.
+# Add it to kustomization.yaml if you run the operator; with Prometheus
+# Operator, use an equivalent ServiceMonitor.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: spoor
+  labels:
+    app.kubernetes.io/name: spoor
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: spoor
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s

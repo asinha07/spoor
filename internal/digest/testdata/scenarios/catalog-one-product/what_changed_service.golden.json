@@ -1,0 +1,56 @@
+{
+  "summary": "4 change(s) in 1 service. Strongest: product-catalog — Failures start here, in \"GET /products/{id}\" (100% of 175 failed traces). Also: product-catalog — Span \"GET /products/{id}\" errors 0.0% → 9.8% (1782 spans). Also: product-catalog — New error log pattern: \"failed to load product OLJCESPC7Z: feature flag productCatalogFailure enabled\". Earliest onset 2026-10-16T03:52:00Z.",
+  "window": "2026-10-16T03:52:00Z/2026-10-16T04:22:00Z",
+  "baseline": "2026-10-16T00:52:00Z/2026-10-16T03:52:00Z (previous, 6 windows)",
+  "findings": [
+    {
+      "service": "product-catalog",
+      "signal": "traces",
+      "kind": "error_origin",
+      "score": 0.99,
+      "title": "Failures start here, in \"GET /products/{id}\" (100% of 175 failed traces)",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T04%3A22%3A00\u0026g0.range_input=30m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+status_code%3A%3D2+%22resource_attr%3Aservice.name%22%3A%3D%22product-catalog%22"
+    },
+    {
+      "service": "product-catalog",
+      "signal": "traces",
+      "kind": "span_errors_up",
+      "score": 0.99,
+      "title": "Span \"GET /products/{id}\" errors 0.0% → 9.8% (1782 spans)",
+      "before": "0.0%",
+      "after": "9.8%",
+      "onset": "2026-10-16T03:52:25Z",
+      "trace_id": "b5f8da52ed9e08fa7457a672d941c472",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T04%3A22%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22product-catalog%22"
+    },
+    {
+      "service": "product-catalog",
+      "signal": "logs",
+      "kind": "new_log_pattern",
+      "score": 0.95,
+      "title": "New error log pattern: \"failed to load product OLJCESPC7Z: feature flag productCatalogFailure enabled\"",
+      "before": "0",
+      "after": "2219 in window",
+      "onset": "2026-10-16T03:52:00Z",
+      "example": "failed to load product OLJCESPC7Z: feature flag productCatalogFailure enabled",
+      "evidence_link": "http://localhost:9428/select/vmui/#/?g0.end_input=2026-10-16T04%3A22%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=%22service.name%22%3A%3D%22product-catalog%22+severity_text%3A~%22%28%3Fi%29%5E%28error%7Cfatal%7Ccritical%29%24%22"
+    },
+    {
+      "service": "product-catalog",
+      "signal": "metrics",
+      "kind": "error_rate_up",
+      "score": 0.67,
+      "title": "Error rate up: 0.1% → 9.9%",
+      "before": "0.1%",
+      "after": "9.9%",
+      "onset": "2026-10-16T03:52:00Z",
+      "evidence_link": "http://localhost:8428/vmui/#/?g0.end_input=2026-10-16T04%3A22%3A00\u0026g0.expr=%28sum%28rate%28http_server_request_duration_seconds_count%7Bservice_name%3D%22product-catalog%22%2Chttp_response_status_code%3D~%225..%22%7D%5B30m%5D%29%29+or+vector%280%29%29+%2F+sum%28rate%28http_server_request_duration_seconds_count%7Bservice_name%3D%22product-catalog%22%7D%5B30m%5D%29%29\u0026g0.range_input=210m\u0026g0.relative_time=none"
+    }
+  ],
+  "truncated": 0,
+  "coverage": {
+    "logs": "ok",
+    "metrics": "ok",
+    "traces": "ok"
+  }
+}

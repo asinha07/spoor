@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "spoor": {
+      "command": "spoor",
+      "args": ["serve"],
+      "env": {
+        "SPOOR_METRICS_URL": "http://localhost:8428",
+        "SPOOR_LOGS_URL": "http://localhost:9428",
+        "SPOOR_TRACES_URL": "http://localhost:10428"
+      }
+    }
+  }
+}

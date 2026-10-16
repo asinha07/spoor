@@ -1,0 +1,38 @@
+# Run Spoor as a hardened systemd service on a VM. From the repo root:
+#   sudo install -m 0755 bin/spoor /usr/local/bin/spoor
+#   sudo install -d -m 0755 /etc/spoor
+#   sudo install -m 0644 examples/spoor.yaml /etc/spoor/spoor.yaml   # then edit it
+# The service runs as a dynamic user, so the config must be world-readable;
+# keep secrets in spoor.env (read by systemd as root), not in spoor.yaml.
+#   echo "SPOOR_HTTP_TOKEN=$(openssl rand -hex 32)" | sudo tee /etc/spoor/spoor.env >/dev/null
+#   sudo chmod 0600 /etc/spoor/spoor.env
+#   sudo cp spoor.service /etc/systemd/system/ && sudo systemctl enable --now spoor
+[Unit]
+Description=Spoor MCP server (what changed, across metrics, logs and traces)
+Documentation=https://github.com/asinha07/spoor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/spoor serve --http 127.0.0.1:8080 --config /etc/spoor/spoor.yaml --log-format json
+EnvironmentFile=/etc/spoor/spoor.env
+DynamicUser=yes
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,36 @@
+# Spoor config for the OpenTelemetry Demo (v3.1) exported to the Victoria stack.
+# Verified against a live demo run.
+#
+# The demo's services do not share one request-metric convention (HTTP server
+# seconds, RPC server milliseconds, RPC call seconds), so request rate, errors
+# and latency come from the collector's span metrics, which cover every service
+# the same way. CPU and memory come from the collector's docker_stats receiver,
+# keyed by container name (equal to the service name in the demo).
+metrics:
+  url: http://localhost:8428
+  service_label: service_name
+  request_rate: 'sum(rate(traces_span_metrics_calls_total{service_name={{.Service}},span_kind=~"SPAN_KIND_(SERVER|CONSUMER)"}[{{.Window}}]))'
+  error_rate: '(sum(rate(traces_span_metrics_calls_total{service_name={{.Service}},span_kind=~"SPAN_KIND_(SERVER|CONSUMER)",status_code="STATUS_CODE_ERROR"}[{{.Window}}])) or vector(0)) / sum(rate(traces_span_metrics_calls_total{service_name={{.Service}},span_kind=~"SPAN_KIND_(SERVER|CONSUMER)"}[{{.Window}}]))'
+  latency_p95: 'histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name={{.Service}},span_kind=~"SPAN_KIND_(SERVER|CONSUMER)"}[{{.Window}}])) by (le)) / 1000'
+  resources:
+    # CPU in cores, not container_cpu_utilization_ratio: that ratio is a share
+    # of all host cores, so one saturated core reads as ~9% on an 11-core host.
+    - name: cpu
+      unit: cores
+      query: 'sum(rate(container_cpu_usage_nanoseconds_total{container_name={{.Service}}}[{{.Window}}])) / 1e9'
+    - name: memory
+      unit: bytes
+      query: 'max(max_over_time(container_memory_usage_total_bytes{container_name={{.Service}}}[{{.Window}}]))'
+logs:
+  url: http://localhost:9428
+  service_field: service.name
+  error_filter: 'severity_text:~"(?i)^(error|fatal|critical)$"'
+traces:
+  url: http://localhost:10428
+# Traffic generators and infrastructure, not services under test.
+ignore_services: [load-generator, frontend-web, otelcol-contrib, telemetry-docs, flagd]
+scoring:
+  # Demo windows are short (minutes, not hours), so require a little more evidence.
+  min_pattern_count: 5
+  # Demo history is short; four baseline windows instead of six.
+  baseline_sub_windows: 4

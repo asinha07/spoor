@@ -1,0 +1,13 @@
+{
+  "scenario": "payment-failure",
+  "description": "The card processor rejects 40% of charges; checkout and frontend fail as a result.",
+  "since": "2026-10-16T08:52:00Z",
+  "until": "2026-10-16T09:22:00Z",
+  "service": "payment",
+  "kinds": [
+    "error_rate_up",
+    "new_log_pattern",
+    "span_errors_up"
+  ],
+  "detail": "payment service: failing charge call"
+}

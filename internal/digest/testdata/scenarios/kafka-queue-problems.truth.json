@@ -1,0 +1,12 @@
+{
+  "scenario": "kafka-queue-problems",
+  "description": "The accounting consumer falls behind on the orders topic.",
+  "since": "2026-10-15T12:52:00Z",
+  "until": "2026-10-15T13:22:00Z",
+  "service": "accounting",
+  "kinds": [
+    "resource_up",
+    "span_slower"
+  ],
+  "detail": "accounting: Kafka consumer lag on orders"
+}

@@ -1,0 +1,183 @@
+# Getting started
+
+This guide gets Spoor running on your machine, first against synthetic incidents (no existing stack needed), then
+against your own backends, then inside an AI agent.
+
+## 1. Install
+
+Pick one. The rest of this guide also uses `jq` (to read the scenario files) and Docker (for local backends).
+
+**From source** (Go 1.25 or newer):
+
+```sh
+git clone https://github.com/asinha07/spoor && cd spoor
+make build                 # ./bin/spoor and ./bin/spoorgen
+./bin/spoor version
+export PATH="$PWD/bin:$PATH"   # so later commands can say just `spoor`
+```
+
+**With `go install`:**
+
+```sh
+go install github.com/asinha07/spoor/cmd/spoor@latest    # into $(go env GOPATH)/bin
+```
+
+**Prebuilt binary:** download the archive for your OS and CPU from the
+[releases page](https://github.com/asinha07/spoor/releases), unpack it and put `spoor` on your `PATH`.
+On macOS, if Gatekeeper blocks it: `xattr -d com.apple.quarantine ./spoor`.
+
+**Docker:**
+
+```sh
+docker build -t spoor --build-arg VERSION=$(git describe --tags --always) .
+docker run --rm spoor version
+```
+
+Released images are published as `ghcr.io/asinha07/spoor:<version>`. If Docker Hub rate-limits the build, add
+`--build-arg GO_IMAGE=mirror.gcr.io/library/golang:1.25`.
+
+## 2. Try it on synthetic incidents (about 5 minutes)
+
+Requires Docker. This starts empty VictoriaMetrics, VictoriaLogs and VictoriaTraces containers and loads six
+incidents with known answers.
+
+```sh
+make it-up        # backends on :8428 (metrics), :9428 (logs), :10428 (traces)
+make demo-data    # ~40 hours of telemetry for a 7-service shop, with six incidents
+```
+
+`make demo-data` writes the ground truth for each incident to `scenarios/out/<scenario>.truth.json`:
+
+| Scenario | What breaks | Where it starts |
+| --- | --- | --- |
+| `payment-failure` | 40% of card charges fail; checkout and frontend fail as a result | payment |
+| `catalog-one-product` | Lookups of exactly one product ID fail | product-catalog |
+| `ad-high-cpu` | The ad service saturates its CPU and slows down | ad |
+| `recommendation-cache-leak` | The cache leaks memory; latency creeps up with it | recommendation |
+| `kafka-queue-problems` | The accounting consumer falls behind on the orders topic | accounting |
+| `control` | Nothing. Only the usual background errors. | — |
+
+Ask Spoor about one (the `./bin/spoor` commands assume you built from source; use `spoor` if it's on your `PATH`):
+
+```sh
+T=scenarios/out/payment-failure.truth.json
+./bin/spoor what-changed --since $(jq -r .since $T) --until $(jq -r .until $T) --pretty
+```
+
+The top finding should be `payment — Failures start here, in "POST /charge"`, with checkout and frontend errors
+labelled `— originates in payment`. Try the `control` scenario too: the answer should be "No significant change",
+with the background errors listed under `steady_errors`.
+
+Other commands:
+
+```sh
+./bin/spoor list-services --since 40h --pretty
+./bin/spoor new-errors --service payment --since $(jq -r .since $T) --until $(jq -r .until $T) --pretty
+./bin/spoor trace-diff --service payment --since $(jq -r .since $T) --until $(jq -r .until $T) --pretty
+```
+
+Each finding can carry an `evidence_link` to the underlying query in VMUI. Links are the first thing dropped to fit
+the token budget, so at the default 800 tokens you may see none; add `--budget 4000` to keep them, then open one in
+a browser.
+
+When you are done: `make it-down` (stops the containers and deletes their data).
+
+## 3. Point it at your own backends
+
+```sh
+export SPOOR_METRICS_URL=http://victoriametrics:8428
+export SPOOR_LOGS_URL=http://victorialogs:9428
+export SPOOR_TRACES_URL=http://victoriatraces:10428
+spoor list-services --since 30m --pretty
+```
+
+Check the output before going further:
+
+- **Every service you expect is listed**, with the signals you send. If a service is missing from `metrics`, your metrics don't
+  carry the `service_label` label (default `service_name`), or carry it under another name. If one is missing from `logs` or `traces`,
+  check `service_field`.
+- **`coverage` says `ok`** for each backend. `error: …` means Spoor cannot reach it or the query failed.
+
+If your metric names differ from the OpenTelemetry defaults, write a config file. The
+[configuration guide](configuration.md) has ready-made recipes for span metrics, classic Prometheus naming,
+cAdvisor and non-OTel logs.
+
+```sh
+spoor what-changed --config spoor.yaml --since 30m --pretty
+```
+
+On a healthy system you should see few or no findings, maybe some `steady_errors`. If you see many findings on a
+quiet day, see [troubleshooting.md](troubleshooting.md#too-many-findings).
+
+## 4. Connect an AI agent
+
+Spoor speaks MCP. Most clients launch it as a subprocess over stdio.
+
+**Claude Code:**
+
+```sh
+claude mcp add spoor \
+  -e SPOOR_METRICS_URL=http://localhost:8428 \
+  -e SPOOR_LOGS_URL=http://localhost:9428 \
+  -e SPOOR_TRACES_URL=http://localhost:10428 \
+  -- /absolute/path/to/spoor serve
+# with a config file:
+claude mcp add spoor -- /absolute/path/to/spoor serve --config /absolute/path/to/spoor.yaml
+```
+
+By default `claude mcp add` registers the server for the current project directory only. Add `-s user`
+(`claude mcp add -s user spoor …`) to make it available in every directory. `claude mcp list` shows whether it
+connected.
+
+Then ask, for example: *"Checkout errors went up in the last 30 minutes. What changed, and where did it start?"*
+
+**Cursor, Claude Desktop, Windsurf and other clients** take a JSON config
+([`examples/mcp.json`](../examples/mcp.json)). For Cursor, put it in `.cursor/mcp.json`; for Claude Desktop, in
+`claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "spoor": {
+      "command": "/absolute/path/to/spoor",
+      "args": ["serve", "--config", "/absolute/path/to/spoor.yaml"],
+      "env": {
+        "SPOOR_METRICS_URL": "http://localhost:8428",
+        "SPOOR_LOGS_URL": "http://localhost:9428",
+        "SPOOR_TRACES_URL": "http://localhost:10428"
+      }
+    }
+  }
+}
+```
+
+Use absolute paths: MCP clients do not start servers from your shell, so `PATH` and the working directory may differ.
+
+**A shared Spoor over HTTP** (one instance for a team; see [production.md](production.md)):
+
+```sh
+export SPOOR_HTTP_TOKEN=$(openssl rand -hex 32)   # or pass --auth-token
+spoor serve --http :8080                          # MCP endpoint: http://localhost:8080/mcp
+
+# from a client (replace localhost with the server's address when it runs elsewhere):
+claude mcp add --transport http spoor http://localhost:8080/mcp \
+  --header "Authorization: Bearer $SPOOR_HTTP_TOKEN"
+```
+
+### Using Spoor alongside other tools
+
+Spoor is meant to be the **first** call, not the only one. Keep your raw query tools (for example the official
+VictoriaMetrics MCP servers) connected too: Spoor tells the agent where to look, the raw tools let it look closer.
+That combination is what the [benchmark](benchmark.md) measures.
+
+## 5. Try it on a real microservice app
+
+The [OpenTelemetry Demo guide](../deploy/demo/README.md) runs the OpenTelemetry Astronomy Shop (about 20 services)
+with its telemetry going to the Victoria stack, injects real faults with feature flags, and shows what Spoor
+reports. It needs about 8 GB of memory for Docker and 30 minutes of warm-up.
+
+## Next
+
+- [Production deployment](production.md)
+- [How Spoor decides what changed](how-it-works.md)
+- [Tool reference](tools.md)

@@ -1,0 +1,66 @@
+{
+  "window": "2026-10-15T07:52:00Z/2026-10-15T08:22:00Z",
+  "services": [
+    {
+      "name": "accounting",
+      "signals": [
+        "metrics",
+        "logs",
+        "traces"
+      ]
+    },
+    {
+      "name": "ad",
+      "signals": [
+        "metrics",
+        "logs",
+        "traces"
+      ]
+    },
+    {
+      "name": "checkout",
+      "signals": [
+        "metrics",
+        "logs",
+        "traces"
+      ]
+    },
+    {
+      "name": "frontend",
+      "signals": [
+        "metrics",
+        "logs",
+        "traces"
+      ]
+    },
+    {
+      "name": "payment",
+      "signals": [
+        "metrics",
+        "logs",
+        "traces"
+      ]
+    },
+    {
+      "name": "product-catalog",
+      "signals": [
+        "metrics",
+        "logs",
+        "traces"
+      ]
+    },
+    {
+      "name": "recommendation",
+      "signals": [
+        "metrics",
+        "logs",
+        "traces"
+      ]
+    }
+  ],
+  "coverage": {
+    "logs": "ok",
+    "metrics": "ok",
+    "traces": "ok"
+  }
+}

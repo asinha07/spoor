@@ -1,0 +1,31 @@
+{
+  "summary": "2 change(s) in 1 service. Strongest: payment — Failures start here, in \"POST /charge\" (100% of 80 failed traces). Also: payment — Span \"POST /charge\" errors 0.0% → 36.4% (220 spans). Earliest onset 2026-10-16T08:52:09Z.",
+  "window": "2026-10-16T08:52:00Z/2026-10-16T09:22:00Z",
+  "baseline": "2026-10-16T05:52:00Z/2026-10-16T08:52:00Z (previous, 6 windows)",
+  "findings": [
+    {
+      "service": "payment",
+      "signal": "traces",
+      "kind": "error_origin",
+      "score": 0.99,
+      "title": "Failures start here, in \"POST /charge\" (100% of 80 failed traces)",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T09%3A22%3A00\u0026g0.range_input=30m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+status_code%3A%3D2+%22resource_attr%3Aservice.name%22%3A%3D%22payment%22"
+    },
+    {
+      "service": "payment",
+      "signal": "traces",
+      "kind": "span_errors_up",
+      "score": 0.96,
+      "title": "Span \"POST /charge\" errors 0.0% → 36.4% (220 spans)",
+      "before": "0.0%",
+      "after": "36.4%",
+      "onset": "2026-10-16T08:52:09Z",
+      "trace_id": "068615e89e4f96cf44a3577b70755f2d",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T09%3A22%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22payment%22"
+    }
+  ],
+  "truncated": 0,
+  "coverage": {
+    "traces": "ok"
+  }
+}
