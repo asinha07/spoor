@@ -50,9 +50,11 @@ make it-reset && make it   # integration tests against real backends (Docker)
 ## Releasing (maintainers)
 
 1. Update `CHANGELOG.md`: move "Unreleased" under the new version.
-2. `git tag vX.Y.Z && git push origin vX.Y.Z`.
-3. The `release` workflow runs GoReleaser: binaries for Linux, macOS and Windows (amd64, arm64), checksums, and
+2. Bump `version` and the image tag in `server.json` to the new version.
+3. `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. The `release` workflow runs GoReleaser: binaries for Linux, macOS and Windows (amd64, arm64), checksums, and
    multi-arch images `ghcr.io/asinha07/spoor:X.Y.Z` and `:latest`.
+5. Publish to the MCP registry: `mcp-publisher login github && mcp-publisher publish`.
 
 ## Commit messages
 

@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.1.1 (2026-10-16)
+
+First release with published binaries and images. (`v0.1.0` was tagged before the release workflow was in
+the repository, so it has no artifacts.) Adds `server.json` and an image label for the official MCP registry.
+
+## 0.1.0
 
 ### Added
 - MCP server with four read-only tools: `what_changed`, `new_errors`, `trace_diff`, `list_services`.

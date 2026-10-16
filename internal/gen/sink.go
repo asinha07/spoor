@@ -33,7 +33,7 @@ func (s HTTPSink) post(ctx context.Context, url, contentType string, body []byte
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() // read-only body; nothing to recover
 	if resp.StatusCode/100 != 2 {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return fmt.Errorf("%s: %d %s", url, resp.StatusCode, strings.TrimSpace(string(msg)))
@@ -65,7 +65,7 @@ func (s HTTPSink) Flush(ctx context.Context) {
 			continue
 		}
 		if resp, err := s.client().Do(req); err == nil {
-			resp.Body.Close()
+			_ = resp.Body.Close() // best-effort flush; the response is not used
 		}
 	}
 }

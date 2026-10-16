@@ -1,0 +1,59 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.asinha07/spoor",
+  "title": "Spoor",
+  "description": "What changed across metrics, logs and traces, and where it started (VictoriaMetrics stack).",
+  "websiteUrl": "https://github.com/asinha07/spoor",
+  "repository": {
+    "url": "https://github.com/asinha07/spoor",
+    "source": "github"
+  },
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/asinha07/spoor:0.1.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "serve"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "SPOOR_METRICS_URL",
+          "description": "VictoriaMetrics URL as seen from the container, e.g. http://host.docker.internal:8428",
+          "isRequired": true
+        },
+        {
+          "name": "SPOOR_LOGS_URL",
+          "description": "VictoriaLogs URL as seen from the container, e.g. http://host.docker.internal:9428",
+          "isRequired": true
+        },
+        {
+          "name": "SPOOR_TRACES_URL",
+          "description": "VictoriaTraces URL as seen from the container, e.g. http://host.docker.internal:10428",
+          "isRequired": true
+        },
+        {
+          "name": "SPOOR_METRICS_TOKEN",
+          "description": "Bearer token for VictoriaMetrics, if it requires one",
+          "isSecret": true
+        },
+        {
+          "name": "SPOOR_LOGS_TOKEN",
+          "description": "Bearer token for VictoriaLogs, if it requires one",
+          "isSecret": true
+        },
+        {
+          "name": "SPOOR_TRACES_TOKEN",
+          "description": "Bearer token for VictoriaTraces, if it requires one",
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

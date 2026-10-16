@@ -138,12 +138,12 @@ func Load(path string) (*Player, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer fh.Close()
+	defer func() { _ = fh.Close() }() // opened read-only
 	zr, err := gzip.NewReader(fh)
 	if err != nil {
 		return nil, err
 	}
-	defer zr.Close()
+	defer func() { _ = zr.Close() }() // read side; decode errors are reported above
 	f := newFixture(time.Time{})
 	if err := json.NewDecoder(zr).Decode(f); err != nil {
 		return nil, fmt.Errorf("decode fixture %s: %w", path, err)
@@ -208,11 +208,11 @@ func save(path string, f *Fixture) error {
 	zw, _ := gzip.NewWriterLevel(fh, gzip.BestCompression)
 	enc := json.NewEncoder(zw)
 	if err := enc.Encode(sortedFixture(f)); err != nil {
-		fh.Close()
+		_ = fh.Close() // already failing with err
 		return err
 	}
 	if err := zw.Close(); err != nil {
-		fh.Close()
+		_ = fh.Close() // already failing with err
 		return err
 	}
 	return fh.Close()

@@ -61,7 +61,7 @@ func connect(t *testing.T, s *mcp.Server) *mcp.ClientSession {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { cs.Close() })
+	t.Cleanup(func() { _ = cs.Close() })
 	return cs
 }
 
@@ -176,14 +176,14 @@ func TestStreamableHTTP(t *testing.T) {
 	if err != nil || resp.StatusCode != 200 {
 		t.Fatalf("healthz: %v %v", err, resp)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	c := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0"}, nil)
 	cs, err := c.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: hs.URL + "/mcp"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cs.Close()
+	defer func() { _ = cs.Close() }()
 	var env digest.Envelope
 	callJSON(t, cs, "what_changed", map[string]any{"since": truth.Since, "until": truth.Until}, &env)
 	if len(env.Findings) == 0 {
@@ -252,7 +252,7 @@ func TestHTTPAuth(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return resp.StatusCode
 	}
 	if code := post(""); code != http.StatusUnauthorized {
@@ -269,7 +269,7 @@ func TestHTTPAuth(t *testing.T) {
 		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Errorf("%s must stay open without a token: %v %v", path, err, resp)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	// An authenticated MCP client works end to end.
@@ -279,7 +279,7 @@ func TestHTTPAuth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cs.Close()
+	defer func() { _ = cs.Close() }()
 	var env digest.Envelope
 	callJSON(t, cs, "what_changed", map[string]any{"since": truth.Since, "until": truth.Until}, &env)
 }
@@ -313,7 +313,7 @@ func TestMetricsAndLogs(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	for _, want := range []string{
 		`spoor_tool_calls_total{tool="what_changed",status="ok"}`,
 		`spoor_tool_calls_total{tool="what_changed",status="error"}`,

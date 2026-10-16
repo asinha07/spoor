@@ -1,5 +1,8 @@
 # Used by GoReleaser: the binary is already built for the target platform.
 FROM gcr.io/distroless/static-debian12:nonroot
+# Proves ownership of the image to the official MCP registry (see server.json).
+LABEL io.modelcontextprotocol.server.name="io.github.asinha07/spoor"
+LABEL org.opencontainers.image.source="https://github.com/asinha07/spoor"
 ARG TARGETPLATFORM
 COPY ${TARGETPLATFORM}/spoor /usr/local/bin/spoor
 EXPOSE 8080

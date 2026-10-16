@@ -51,17 +51,17 @@ func main() {
 
 func run(args []string, stdout io.Writer) error {
 	if len(args) == 0 {
-		fmt.Fprint(stdout, usage)
-		return nil
+		_, err := fmt.Fprint(stdout, usage)
+		return err
 	}
 	cmd, rest := args[0], args[1:]
 	switch cmd {
 	case "version", "--version", "-v":
-		fmt.Fprintln(stdout, version)
-		return nil
+		_, err := fmt.Fprintln(stdout, version)
+		return err
 	case "help", "--help", "-h":
-		fmt.Fprint(stdout, usage)
-		return nil
+		_, err := fmt.Fprint(stdout, usage)
+		return err
 	case "serve":
 		return serve(rest)
 	case "what-changed", "new-errors", "trace-diff", "list-services":

@@ -68,7 +68,7 @@ func (c httpClient) post(ctx context.Context, path string, form url.Values) ([]b
 			slog.String("query", form.Get("query")), slog.Duration("duration", time.Since(started)), slog.String("error", err.Error()))
 		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() // read-only body; nothing to recover
 	defer func() {
 		d := time.Since(started)
 		telemetry.BackendRequest(c.name, statusLabel(resp.StatusCode), d)
