@@ -1,5 +1,60 @@
 # Changelog
 
+## Unreleased
+
+Fixes from a trial on real production logs (mixed formats, IDs in messages, Grafana-only access).
+
+### Added
+- `spoor doctor`: checks what Spoor can see in each backend (service and level fields, lines without them, levels
+  only in message text, error filter matches, messages fragmented by IDs, metric queries that return nothing) and
+  suggests config.
+- `logs.severity_fields`: the error filter is built from your level fields, and coverage reports the share of lines
+  with none of them. `logs.error_filter` now overrides it (default changed from a fixed `severity_text` filter to
+  `severity_fields: [severity_text]`; behaviour is the same for OpenTelemetry logs).
+- Error-message normalization before grouping: first line only, leading timestamps dropped, letter-digit IDs
+  (`normalize_ids`), user rules (`logs.normalize`), or grouping by a field (`logs.pattern_field`).
+- Error families: messages that differ only by IDs, quoted values or `key=value` values are one error. "New" now
+  means the family never occurred in the baseline; findings show how many variants were grouped.
+- `error_volume_up` finding: a service's error lines rose beyond its baseline and faster than its log lines.
+- `steady_errors` entries show `change` and `log_lines_change`.
+- Coverage notes `logs_lines`, `logs_patterns`, `logs_volume`; blind spots (error filter matching nothing, lines
+  without a service field) replace `ok` and are named in the summary.
+- Redaction of every output field (summary, titles, before/after, coverage), IPv4 addresses and letter-digit IDs;
+  user `redact` rules.
+- HTTP Basic auth per backend (`username`, `password`, `SPOOR_*_USER`, `SPOOR_*_PASSWORD`), for Grafana's datasource
+  proxy; `grafana` block for Grafana Explore evidence links.
+- `--stats` on CLI commands: backend request count and time.
+- `bench/replay.py`: replay labelled windows from your own history and grade Spoor.
+- `messy-logs` test scenario (`spoorgen --scenario messy-logs`, `deploy/test/messy.yaml`) and integration test.
+
+### Docs
+- Benchmark: production replay on real logs (anonymized aggregates): output size, candidates, count agreement,
+  coverage and timing against direct queries and v0.1.1.
+
+### Fixed
+- Line-total buckets were offset from the baseline sub-windows (VictoriaLogs applies a bucket offset backwards),
+  which skewed error share and `log_lines_change`. An integration test now checks the window total against a direct
+  count.
+
+### Changed
+- Logs are scored for all services in three or four parallel queries instead of two per service; error counts
+  per sub-window come from the pattern queries (`total_stats`), so a text-matching error filter runs once per range.
+- Logs cover every service; `max_services` now caps only metrics and traces.
+- JSON error messages: text and code are taken from `logs.message_fields` / `logs.code_fields` (new) instead of
+  cutting at the first line, which turned pretty-printed JSON into `{`.
+- Error families ignore log-prefix brackets (`[ERROR] [thread] [correlationId:…]`) but keep class names.
+- A new error needs 10 lines, or 5% of its service's error lines, to be reported.
+- When logs are blind, the summary leads with it instead of "No significant change".
+- `logs_patterns` says how many possible new errors were actually verified.
+- `spoor doctor` ignores numeric level fields (log4j `level_value`), flags JSON errors without a message field, and
+  words variant counts as grouped rather than unnormalized.
+- New errors are verified against the full baseline when a service has more than 200 distinct error patterns.
+- A partial metric failure is reported as `partial (…)` instead of being hidden.
+- Self time subtracts the union of child spans (parallel calls counted once) when span start times are available
+  (`traces.start_field`).
+- With findings present, the summary lists steady-error services by name only.
+
+
 ## 0.1.1 (2026-10-16)
 
 First release with published binaries and images. (`v0.1.0` was tagged before the release workflow was in

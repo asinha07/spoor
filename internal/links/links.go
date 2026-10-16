@@ -3,6 +3,7 @@
 package links
 
 import (
+	"encoding/json"
 	"net/url"
 	"strings"
 	"time"
@@ -33,6 +34,31 @@ func LogsQL(base, query string, start, end time.Time) string {
 	v.Set("g0.end_input", end.UTC().Format("2006-01-02T15:04:05"))
 	v.Set("g0.relative_time", "none")
 	return strings.TrimRight(base, "/") + "/select/vmui/#/?" + v.Encode()
+}
+
+// Grafana returns a Grafana Explore link that runs expr against one
+// datasource over [start, end].
+func Grafana(grafanaURL, uid, dsType, expr string, start, end time.Time) string {
+	if grafanaURL == "" || uid == "" {
+		return ""
+	}
+	q := map[string]any{"refId": "A", "expr": expr, "datasource": map[string]string{"uid": uid, "type": dsType}}
+	if dsType == "" {
+		q["datasource"] = map[string]string{"uid": uid}
+	}
+	pane := map[string]any{
+		"datasource": uid,
+		"queries":    []any{q},
+		"range": map[string]string{
+			"from": itoa(start.UnixMilli()),
+			"to":   itoa(end.UnixMilli()),
+		},
+	}
+	b, _ := json.Marshal(map[string]any{"spoor": pane})
+	v := url.Values{}
+	v.Set("schemaVersion", "1")
+	v.Set("panes", string(b))
+	return strings.TrimRight(grafanaURL, "/") + "/explore?" + v.Encode()
 }
 
 func durationInput(d time.Duration) string {

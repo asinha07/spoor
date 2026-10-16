@@ -23,6 +23,12 @@ func NewLogsQL(base, token string, timeout time.Duration) *LogsQL {
 	return &LogsQL{http: h}
 }
 
+// WithBasicAuth sends HTTP Basic credentials when no bearer token is set.
+func (l *LogsQL) WithBasicAuth(user, pass string) *LogsQL {
+	l.http.user, l.http.pass = user, pass
+	return l
+}
+
 // WithName labels this client's requests in Spoor's own metrics ("logs", "traces").
 func (l *LogsQL) WithName(name string) *LogsQL {
 	l.http.name = name

@@ -11,6 +11,7 @@ import (
 
 	"github.com/asinha07/spoor/internal/backend"
 	"github.com/asinha07/spoor/internal/config"
+	"github.com/asinha07/spoor/internal/links"
 	"github.com/asinha07/spoor/internal/window"
 )
 
@@ -21,11 +22,12 @@ type Engine struct {
 	logs    LogsSource
 	traces  LogsSource
 	now     func() time.Time
+	redact  *redactor
 }
 
 // New builds an engine. Any source may be nil when that backend is not configured.
 func New(cfg config.Config, metrics MetricsSource, logs, traces LogsSource) *Engine {
-	return &Engine{cfg: cfg, metrics: metrics, logs: logs, traces: traces, now: time.Now}
+	return &Engine{cfg: cfg, metrics: metrics, logs: logs, traces: traces, now: time.Now, redact: newRedactor(cfg.Redact)}
 }
 
 // NewFromConfig builds an engine with real HTTP clients.
@@ -33,13 +35,13 @@ func NewFromConfig(cfg config.Config) *Engine {
 	var m MetricsSource
 	var l, t LogsSource
 	if cfg.Metrics.URL != "" {
-		m = backend.NewMetrics(cfg.Metrics.URL, cfg.Metrics.BearerToken, cfg.Timeout)
+		m = backend.NewMetrics(cfg.Metrics.URL, cfg.Metrics.BearerToken, cfg.Timeout).WithBasicAuth(cfg.Metrics.Username, cfg.Metrics.Password)
 	}
 	if cfg.Logs.URL != "" {
-		l = backend.NewLogsQL(cfg.Logs.URL, cfg.Logs.BearerToken, cfg.Timeout).WithName("logs")
+		l = backend.NewLogsQL(cfg.Logs.URL, cfg.Logs.BearerToken, cfg.Timeout).WithBasicAuth(cfg.Logs.Username, cfg.Logs.Password).WithName("logs")
 	}
 	if cfg.Traces.URL != "" {
-		t = backend.NewLogsQL(cfg.Traces.URL, cfg.Traces.BearerToken, cfg.Timeout).WithName("traces")
+		t = backend.NewLogsQL(cfg.Traces.URL, cfg.Traces.BearerToken, cfg.Timeout).WithBasicAuth(cfg.Traces.Username, cfg.Traces.Password).WithName("traces")
 	}
 	return New(cfg, m, l, t)
 }
@@ -62,6 +64,29 @@ func (e *Engine) uiBase(b config.Backend) string {
 		return b.UIURL
 	}
 	return b.URL
+}
+
+// Evidence links open Grafana Explore when a Grafana datasource is
+// configured for the signal, and the backend's own VMUI otherwise.
+func (e *Engine) metricsLink(q string, start, end time.Time) string {
+	if g := e.cfg.Grafana; g.URL != "" && g.Metrics.UID != "" {
+		return links.Grafana(g.URL, g.Metrics.UID, g.Metrics.Type, q, start, end)
+	}
+	return links.Metrics(e.uiBase(e.cfg.Metrics.Backend), q, start, end)
+}
+
+func (e *Engine) logsLink(q string, start, end time.Time) string {
+	if g := e.cfg.Grafana; g.URL != "" && g.Logs.UID != "" {
+		return links.Grafana(g.URL, g.Logs.UID, g.Logs.Type, q, start, end)
+	}
+	return links.LogsQL(e.uiBase(e.cfg.Logs.Backend), q, start, end)
+}
+
+func (e *Engine) tracesLink(q string, start, end time.Time) string {
+	if g := e.cfg.Grafana; g.URL != "" && g.Traces.UID != "" {
+		return links.Grafana(g.URL, g.Traces.UID, g.Traces.Type, q, start, end)
+	}
+	return links.LogsQL(e.uiBase(e.cfg.Traces.Backend), q, start, end)
 }
 
 // scorerSet selects which signals a tool consults.
@@ -97,6 +122,10 @@ func (e *Engine) run(ctx context.Context, req Request, set scorerSet) (Envelope,
 	services := []string{strings.TrimSpace(req.Service)}
 	scope := services[0]
 	scanNote := ""
+	// Logs are scored in a few batched queries whatever the number of
+	// services, so they cover every service; metrics and traces are queried
+	// per service and are capped at max_services.
+	logServices := services
 	if scope == "" {
 		services = services[:0]
 		for _, s := range list.Services {
@@ -104,11 +133,13 @@ func (e *Engine) run(ctx context.Context, req Request, set scorerSet) (Envelope,
 				services = append(services, s.Name)
 			}
 		}
-		if len(services) > e.cfg.MaxServices {
-			scanNote = fmt.Sprintf("scanned the first %d of %d services (alphabetical); pass service to check others", e.cfg.MaxServices, len(services))
+		logServices = append([]string{}, services...)
+		perService := (set.metrics && e.metrics != nil) || (set.traces && e.traces != nil)
+		if perService && len(services) > e.cfg.MaxServices {
+			scanNote = fmt.Sprintf("metrics and traces scanned for the first %d of %d services (alphabetical; logs cover all); pass service to check others", e.cfg.MaxServices, len(services))
 			services = services[:e.cfg.MaxServices]
 		}
-		scope = fmt.Sprintf("%d services", len(services))
+		scope = fmt.Sprintf("%d services", len(logServices))
 	}
 
 	cov := newCoverage(set, e)
@@ -118,7 +149,23 @@ func (e *Engine) run(ctx context.Context, req Request, set scorerSet) (Envelope,
 		steady   []SteadyError
 		wg       sync.WaitGroup
 		sem      = make(chan struct{}, 4)
+		logRes   logResult
 	)
+	// Logs are scored for all services at once: a few batched queries
+	// instead of two per service.
+	if set.logs && e.logs != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			r, err := e.scoreLogs(ctx, logServices, req.Service == "", spec)
+			mu.Lock()
+			defer mu.Unlock()
+			cov.record(SignalLogs, err)
+			findings = append(findings, r.findings...)
+			steady = append(steady, r.steady...)
+			logRes = r
+		}()
+	}
 	for _, svc := range services {
 		svc := svc
 		wg.Add(1)
@@ -134,15 +181,6 @@ func (e *Engine) run(ctx context.Context, req Request, set scorerSet) (Envelope,
 			}
 			jobs := []job{
 				{SignalMetrics, set.metrics, e.metrics != nil, func() ([]Finding, error) { return e.scoreMetrics(ctx, svc, spec) }},
-				{SignalLogs, set.logs, e.logs != nil, func() ([]Finding, error) {
-					fs, st, err := e.scoreLogs(ctx, svc, spec)
-					if st != nil {
-						mu.Lock()
-						steady = append(steady, *st)
-						mu.Unlock()
-					}
-					return fs, err
-				}},
 				{SignalTraces, set.traces, e.traces != nil, func() ([]Finding, error) { return e.scoreTraces(ctx, svc, req.Operation, spec) }},
 			}
 			for _, j := range jobs {
@@ -206,11 +244,34 @@ func (e *Engine) run(ctx context.Context, req Request, set scorerSet) (Envelope,
 	if scanNote != "" {
 		env.Coverage["scope"] = scanNote
 	}
+	if _, ok := env.Coverage[SignalLogs]; ok {
+		if logRes.state != "" && !strings.HasPrefix(env.Coverage[SignalLogs], "error") {
+			env.Coverage[SignalLogs] = logRes.state
+		}
+		for k, v := range logRes.notes {
+			env.Coverage[k] = v
+		}
+	}
 	env.SteadyErrors = topSteady(withoutFindings(steady, ranked), baseNotes[SignalLogs] != "")
-	env.Summary = summarize(scope, ranked, spec) + steadySentence(env.SteadyErrors, len(ranked) == 0)
+	// Redact before summarizing, so the summary is built from clean titles;
+	// the summary itself is redacted again with everything else.
+	allow := append(append([]string{}, services...), keys(known)...)
+	e.redact.envelope(&env, allow)
+	env.Summary = summarize(scope, env.Findings, spec) + steadySentence(env.SteadyErrors, len(ranked) == 0)
 	if len(ranked) == 0 && noData != "" {
 		env.Summary = noData
 	}
+	switch {
+	case logRes.state != "" && len(ranked) == 0:
+		// Blind, not quiet: say so first, and do not open with "no change".
+		env.Summary = strings.TrimSpace(logRes.summary)
+		if noData == "" && (env.Coverage[SignalMetrics] == "ok" || env.Coverage[SignalTraces] == "ok") {
+			env.Summary += " Metrics and traces show no significant change."
+		}
+	default:
+		env.Summary += logRes.summary
+	}
+	e.redact.envelope(&env, allow)
 	return Fit(env, ClampBudget(req.BudgetTokens)), nil
 }
 
@@ -266,16 +327,26 @@ func rangeString(r window.Range) string {
 	return r.Start.UTC().Format(time.RFC3339) + "/" + r.End.UTC().Format(time.RFC3339)
 }
 
+// partialError marks a scorer that answered with some of its queries
+// failing: its findings are kept and coverage says "partial".
+type partialError struct {
+	svc string
+	err error
+}
+
+func (p partialError) Error() string { return p.svc + ": " + p.err.Error() }
+
 // coverage tracks which signals answered.
 type coverage struct {
-	wanted map[string]string // signal -> "not configured" or ""
-	ok     map[string]int
-	failed map[string]int
-	last   map[string]string
+	wanted  map[string]string // signal -> "not configured" or ""
+	ok      map[string]int
+	failed  map[string]int
+	partial map[string]int
+	last    map[string]string
 }
 
 func newCoverage(set scorerSet, e *Engine) *coverage {
-	c := &coverage{wanted: map[string]string{}, ok: map[string]int{}, failed: map[string]int{}, last: map[string]string{}}
+	c := &coverage{wanted: map[string]string{}, ok: map[string]int{}, failed: map[string]int{}, partial: map[string]int{}, last: map[string]string{}}
 	add := func(on bool, sig string, configured bool) {
 		if !on {
 			return
@@ -297,6 +368,12 @@ func (c *coverage) record(sig string, err error) {
 		c.ok[sig]++
 		return
 	}
+	if p, ok := err.(partialError); ok {
+		c.ok[sig]++
+		c.partial[sig]++
+		c.last[sig] = truncate(p.Error(), 160)
+		return
+	}
 	c.failed[sig]++
 	// Backend errors already read "backend unavailable: …"; keep them as is.
 	c.last[sig] = truncate(err.Error(), 160)
@@ -308,6 +385,8 @@ func (c *coverage) result(services int) map[string]string {
 		switch {
 		case note != "":
 			out[sig] = note
+		case c.failed[sig] == 0 && c.partial[sig] > 0:
+			out[sig] = fmt.Sprintf("partial (some queries failed for %d of %d services): %s", c.partial[sig], services, c.last[sig])
 		case c.failed[sig] == 0:
 			out[sig] = "ok"
 		case c.ok[sig] == 0:
@@ -485,17 +564,21 @@ func steadySentence(st []SteadyError, noFindings bool) string {
 	}
 	parts := make([]string, 0, len(st))
 	for _, s := range st {
-		parts = append(parts, fmt.Sprintf("%s (%.0f error lines now vs %s per window before, e.g. %q)",
-			s.Service, s.ErrorsNow, fmtCount(s.ErrorsUsual), truncate(s.Example, 80)))
+		change := s.Change
+		if s.LinesChange != "" {
+			change += ", all log lines " + s.LinesChange
+		}
+		parts = append(parts, fmt.Sprintf("%s (%.0f error lines now vs %s usual, %s; e.g. %q)",
+			s.Service, s.ErrorsNow, fmtCount(s.ErrorsUsual), change, truncate(s.Example, 80)))
 	}
 	if noFindings {
-		return " Errors at their usual rate, present before this window and not a new problem: " + strings.Join(parts, "; ") + "."
+		return " Errors present before this window and not significantly up, so not a new problem: " + strings.Join(parts, "; ") + "."
 	}
 	names := make([]string, 0, len(st))
 	for _, s := range st {
 		names = append(names, s.Service)
 	}
-	return " Errors at their usual rate (not new) in: " + strings.Join(names, ", ") + "."
+	return " Errors not significantly up (not new) in: " + strings.Join(names, ", ") + "."
 }
 
 // fmtCount prints a count without trailing zeros: 5, 9.7.
@@ -520,5 +603,14 @@ func withoutFindings(st []SteadyError, fs []Finding) []SteadyError {
 			out = append(out, s)
 		}
 	}
+	return out
+}
+
+func keys[V any](m map[string]V) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
 	return out
 }

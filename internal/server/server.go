@@ -20,8 +20,9 @@ Start with what_changed (omit service to scan everything); it ranks changes acro
 Use new_errors or trace_diff to dig into one signal, and list_services to find service names.
 Every tool takes since/until (RFC 3339 or a duration ago like 30m), baseline and budget_tokens (response size cap).
 Use the default baseline (previous: the windows just before) unless you know the backends hold data from a day or a week earlier; if coverage says the baseline has no data, retry with baseline=previous.
-steady_errors lists services whose errors run at their usual rate: they existed before the window and are unlikely to explain a new problem, so do not report them as the cause unless nothing else changed and the user's symptoms match them.
-Findings are evidence, not conclusions: check coverage for signals that did not answer.`
+steady_errors lists services whose errors are not significantly above their usual level (change shows by how much, log_lines_change how traffic moved): they existed before the window and are unlikely to explain a new problem, so do not report them as the cause unless nothing else changed and the user's symptoms match them. A large percentage on small counts is noise.
+Error log findings group messages that differ only by IDs or values into one error; "new" means that error did not occur in the baseline at all.
+Findings are evidence, not conclusions. Read coverage: any signal state other than "ok" (an error, no data, an error filter that matched nothing, lines without a service or severity field) means Spoor may be blind there, and an empty result is then not evidence of health.`
 
 // WindowInput is shared by the digest tools.
 type WindowInput struct {
@@ -63,9 +64,10 @@ func New(engine *digest.Engine, version string) *mcp.Server {
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
-		Name:        "new_errors",
-		Title:       "New errors",
-		Description: "Error log patterns that are new or spiking compared with a baseline, each with its count, first-seen time and one redacted example line.",
+		Name:  "new_errors",
+		Title: "New errors",
+		Description: "Error logs compared with a baseline: errors that are new or spiking (messages that differ only by IDs count as one error), services whose error volume rose beyond their traffic, " +
+			"each with counts, first-seen time and one redacted example line, plus services whose errors are steady.",
 		Annotations: readOnly(),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in WindowInput) (*mcp.CallToolResult, any, error) {
 		return observe("new_errors", toRequest(in), func() (any, error) { return engine.NewErrors(ctx, toRequest(in)) })

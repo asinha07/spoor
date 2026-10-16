@@ -1,30 +1,37 @@
 {
-  "summary": "No significant change in 7 services during 2026-10-15T07:52:00Z/2026-10-15T08:22:00Z compared with the previous baseline. Errors at their usual rate, present before this window and not a new problem: frontend (29 error lines now vs 31.8 per window before, e.g. \"call to catalog.GetProduct failed with status \u003cN\u003e\"); product-catalog (8 error lines now vs 10.2 per window before, e.g. \"failed to load product LS4PSXUNUM: database query returned error\"); ad (5 error lines now vs 5 per window before, e.g. \"ad index refresh failed\").",
-  "window": "2026-10-15T07:52:00Z/2026-10-15T08:22:00Z",
-  "baseline": "2026-10-15T04:52:00Z/2026-10-15T07:52:00Z (previous, 6 windows)",
+  "summary": "No significant change in 7 services during 2026-10-15T12:24:00Z/2026-10-15T12:54:00Z compared with the previous baseline. Errors present before this window and not significantly up, so not a new problem: frontend (36 error lines now vs 32.5 usual, +11%, all log lines +6%; e.g. \"call to recommendation.List failed with status \u003cN\u003e\"); product-catalog (14 error lines now vs 11.5 usual, +22%, all log lines +4%; e.g. \"failed to load product \u003cID\u003e: database query returned error\"); recommendation (12 error lines now vs 8 usual, +50%, all log lines +10%; e.g. \"call to catalog.GetProduct failed with status \u003cN\u003e\").",
+  "window": "2026-10-15T12:24:00Z/2026-10-15T12:54:00Z",
+  "baseline": "2026-10-15T09:24:00Z/2026-10-15T12:24:00Z (previous, 6 windows)",
   "findings": [],
   "steady_errors": [
     {
       "service": "frontend",
-      "errors_now": 29,
-      "errors_usual": 31.8,
-      "example": "call to catalog.GetProduct failed with status \u003cN\u003e"
+      "errors_now": 36,
+      "errors_usual": 32.5,
+      "change": "+11%",
+      "log_lines_change": "+6%",
+      "example": "call to recommendation.List failed with status \u003cN\u003e"
     },
     {
       "service": "product-catalog",
-      "errors_now": 8,
-      "errors_usual": 10.2,
-      "example": "failed to load product LS4PSXUNUM: database query returned error"
+      "errors_now": 14,
+      "errors_usual": 11.5,
+      "change": "+22%",
+      "log_lines_change": "+4%",
+      "example": "failed to load product \u003cID\u003e: database query returned error"
     },
     {
-      "service": "ad",
-      "errors_now": 5,
-      "errors_usual": 5,
-      "example": "ad index refresh failed"
+      "service": "recommendation",
+      "errors_now": 12,
+      "errors_usual": 8,
+      "change": "+50%",
+      "log_lines_change": "+10%",
+      "example": "call to catalog.GetProduct failed with status \u003cN\u003e"
     }
   ],
   "truncated": 0,
   "coverage": {
-    "logs": "ok"
+    "logs": "ok",
+    "logs_lines": "76 error lines in 3552 log lines"
   }
 }

@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/asinha07/spoor/internal/telemetry"
@@ -36,7 +37,20 @@ type httpClient struct {
 	name  string // backend label for Spoor's own metrics
 	base  string
 	token string
+	user  string // HTTP Basic auth, used when token is empty
+	pass  string
 	hc    *http.Client
+}
+
+var (
+	requestCount atomic.Int64
+	requestNanos atomic.Int64
+)
+
+// Stats returns how many backend requests this process has sent and the
+// total time spent waiting for them.
+func Stats() (requests int64, total time.Duration) {
+	return requestCount.Load(), time.Duration(requestNanos.Load())
 }
 
 func newHTTP(base, token string, timeout time.Duration) httpClient {
@@ -57,10 +71,15 @@ func (c httpClient) post(ctx context.Context, path string, form url.Values) ([]b
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", "spoor")
-	if c.token != "" {
+	switch {
+	case c.token != "":
 		req.Header.Set("Authorization", "Bearer "+c.token)
+	case c.user != "" || c.pass != "":
+		req.SetBasicAuth(c.user, c.pass)
 	}
 	started := time.Now()
+	requestCount.Add(1)
+	defer func() { requestNanos.Add(int64(time.Since(started))) }()
 	resp, err := c.hc.Do(req)
 	if err != nil {
 		telemetry.BackendRequest(c.name, "error", time.Since(started))

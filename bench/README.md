@@ -54,6 +54,12 @@ python3 bench/grade.py bench/results scenarios/out > bench/results/summary.md
 ./bench/servers.sh down
 ```
 
+## Replaying your own incidents
+
+`replay.py` runs Spoor (no agent, no model cost) over labelled windows from your own history and grades it:
+incidents found, false alarms on quiet windows, latency and backend load. See
+[docs/benchmark.md § Replay your own incidents](../docs/benchmark.md#replay-your-own-incidents).
+
 ## Results
 
 Latest run (v3, Claude Haiku, 60 sessions, $0.78): with Spoor **30/30** correct (25/25 on faults) against 23/30

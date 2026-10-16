@@ -40,8 +40,16 @@ and `7d` need a day or a week of retention. If the baseline is empty, Spoor tell
 0 to 1. 0.5, the default reporting threshold, corresponds to a robust z-score of 3 against the baseline. Scores
 above 0.9 are strong changes, usually confirmed by more than one signal. See [how-it-works.md](how-it-works.md).
 
+**My logs aren't OpenTelemetry: different service field, several level fields, levels only in the text.**
+That's normal. Run `spoor doctor`; it finds the fields your logs use and writes the config, including a text rule for
+plain-text levels. See [Logs that aren't OpenTelemetry](configuration.md#logs-that-arent-opentelemetry).
+
+**We only reach our backends through Grafana.**
+Point Spoor at Grafana's datasource proxy with a service-account token or a user and password. See
+[Behind Grafana](configuration.md#behind-grafana).
+
 **What are `steady_errors`?**
-Services whose errors run at their usual rate. They were there before the window, so they probably don't explain a
+Services whose errors are not significantly above their usual level. They were there before the window, so they probably don't explain a
 new problem. Agents tend to blame any error they see; this field tells them not to.
 
 **Why is the answer cut off? What is `truncated`?**

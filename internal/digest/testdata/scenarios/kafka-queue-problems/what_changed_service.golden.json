@@ -1,44 +1,45 @@
 {
-  "summary": "3 change(s) in 1 service. Strongest: accounting — Added latency starts here, in \"orders process\": self time 16ms → 78ms (100% of added self time). Also: accounting — Consumer lag up: 15.0 messages → 6345 messages. Also: accounting — Span \"orders process\" p95 24ms → 129ms (100% of added latency). Earliest onset 2026-10-15T13:04:00Z.",
-  "window": "2026-10-15T12:52:00Z/2026-10-15T13:22:00Z",
-  "baseline": "2026-10-15T09:52:00Z/2026-10-15T12:52:00Z (previous, 6 windows)",
+  "summary": "3 change(s) in 1 service. Strongest: accounting — Added latency starts here, in \"orders process\": self time 15ms → 77ms (100% of added self time). Also: accounting — Consumer lag up: 15.0 messages → 5904 messages. Also: accounting — Span \"orders process\" p95 23ms → 113ms (100% of added latency). Earliest onset 2026-10-15T17:36:00Z. Logs: the error filter matched none of 129 log lines, so Spoor cannot see log errors; this is not evidence of health (run spoor doctor).",
+  "window": "2026-10-15T17:24:00Z/2026-10-15T17:54:00Z",
+  "baseline": "2026-10-15T14:24:00Z/2026-10-15T17:24:00Z (previous, 6 windows)",
   "findings": [
     {
       "service": "accounting",
       "signal": "traces",
       "kind": "latency_origin",
       "score": 0.99,
-      "title": "Added latency starts here, in \"orders process\": self time 16ms → 78ms (100% of added self time)",
-      "before": "16ms",
-      "after": "78ms",
-      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-15T13%3A22%3A00\u0026g0.range_input=30m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22accounting%22+%22name%22%3A%3D%22orders+process%22"
+      "title": "Added latency starts here, in \"orders process\": self time 15ms → 77ms (100% of added self time)",
+      "before": "15ms",
+      "after": "77ms",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-15T17%3A54%3A00\u0026g0.range_input=30m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22accounting%22+%22name%22%3A%3D%22orders+process%22"
     },
     {
       "service": "accounting",
       "signal": "metrics",
       "kind": "resource_up",
       "score": 0.98,
-      "title": "Consumer lag up: 15.0 messages → 6345 messages",
+      "title": "Consumer lag up: 15.0 messages → 5904 messages",
       "before": "15.0 messages",
-      "after": "6345 messages",
-      "onset": "2026-10-15T13:04:00Z",
-      "evidence_link": "http://localhost:8428/vmui/#/?g0.end_input=2026-10-15T13%3A22%3A00\u0026g0.expr=max%28max_over_time%28kafka_consumer_lag%7Bservice_name%3D%22accounting%22%7D%5B30m%5D%29%29\u0026g0.range_input=210m\u0026g0.relative_time=none"
+      "after": "5904 messages",
+      "onset": "2026-10-15T17:36:00Z",
+      "evidence_link": "http://localhost:8428/vmui/#/?g0.end_input=2026-10-15T17%3A54%3A00\u0026g0.expr=max%28max_over_time%28kafka_consumer_lag%7Bservice_name%3D%22accounting%22%7D%5B30m%5D%29%29\u0026g0.range_input=210m\u0026g0.relative_time=none"
     },
     {
       "service": "accounting",
       "signal": "traces",
       "kind": "span_slower",
-      "score": 0.86,
-      "title": "Span \"orders process\" p95 24ms → 129ms (100% of added latency)",
-      "before": "24ms",
-      "after": "129ms",
-      "trace_id": "6bc739da55413b8130c76738511bbcf2",
-      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-15T13%3A22%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22accounting%22"
+      "score": 0.84,
+      "title": "Span \"orders process\" p95 23ms → 113ms (100% of added latency)",
+      "before": "23ms",
+      "after": "113ms",
+      "trace_id": "8ab6812dc76937b2064672b87ee886ec",
+      "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-15T17%3A54%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22accounting%22"
     }
   ],
   "truncated": 0,
   "coverage": {
-    "logs": "ok",
+    "logs": "no error lines: the error filter matched none of 129 log lines; check logs.severity_fields or logs.error_filter (run spoor doctor)",
+    "logs_lines": "0 error lines in 129 log lines",
     "metrics": "ok",
     "traces": "ok"
   }

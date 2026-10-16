@@ -2,7 +2,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 COMPOSE := docker compose -f deploy/test/compose.yaml
 
-.PHONY: build test lint it it-up it-down it-reset record demo-data bench clean
+.PHONY: build test lint it it-up it-down it-reset record demo-data messy-data bench clean
 
 build: ## Build spoor and spoorgen into ./bin
 	go build -ldflags "$(LDFLAGS)" -o bin/spoor ./cmd/spoor
@@ -32,6 +32,9 @@ record: it-reset ## Re-record golden fixtures from fresh backends, then refresh 
 
 demo-data: ## Load all six fault scenarios into running backends
 	go run ./cmd/spoorgen --scenario all --truth-dir scenarios/out
+
+messy-data: ## Load the production-shaped messy-logs scenario (use with deploy/test/messy.yaml)
+	go run ./cmd/spoorgen --scenario messy-logs --end $$(date -u -d '-40 hours' +%Y-%m-%dT%H:00:00Z 2>/dev/null || date -u -v-40H +%Y-%m-%dT%H:00:00Z) --truth-dir scenarios/out
 
 bench: build ## Run the agent benchmark (see bench/README.md)
 	./bench/run.sh

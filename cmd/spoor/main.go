@@ -13,11 +13,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/asinha07/spoor/internal/backend"
 	"github.com/asinha07/spoor/internal/config"
 	"github.com/asinha07/spoor/internal/digest"
 	"github.com/asinha07/spoor/internal/server"
@@ -35,10 +37,12 @@ Usage:
   spoor new-errors    [flags]                        new or spiking error log patterns
   spoor trace-diff    [flags] [--operation NAME]     slower or failing spans
   spoor list-services [--since 30m] [--until now]    services and the signals they have
+  spoor doctor        [--since 15m] [--json]         check what Spoor can see; suggest config
   spoor version
 
 Common flags: --service NAME (omit for all), --since 30m, --until now,
---baseline previous|1d|7d, --budget 800, --config FILE, --pretty.
+--baseline previous|1d|7d, --budget 800, --config FILE, --pretty,
+--stats (print backend request count and time to stderr).
 Backends default to localhost; override with SPOOR_METRICS_URL, SPOOR_LOGS_URL, SPOOR_TRACES_URL.
 `
 
@@ -64,7 +68,7 @@ func run(args []string, stdout io.Writer) error {
 		return err
 	case "serve":
 		return serve(rest)
-	case "what-changed", "new-errors", "trace-diff", "list-services":
+	case "what-changed", "new-errors", "trace-diff", "list-services", "doctor":
 		return query(cmd, rest, stdout)
 	}
 	return fmt.Errorf("unknown command %q (run 'spoor help')", cmd)
@@ -122,8 +126,20 @@ func query(cmd string, args []string, stdout io.Writer) error {
 	baseline := fs.String("baseline", "", "previous (default), 1d or 7d")
 	budget := fs.Int("budget", 0, "response size cap in tokens (default 800)")
 	pretty := fs.Bool("pretty", false, "indent JSON output")
+	stats := fs.Bool("stats", false, "print backend request count and time to stderr")
+	asJSON := fs.Bool("json", false, "doctor: print JSON instead of text")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	started := time.Now()
+	if *stats {
+		defer func() {
+			n, d := backend.Stats()
+			fmt.Fprintf(os.Stderr, "spoor: %d backend requests, %.2fs waiting on backends, %.2fs total\n", n, d.Seconds(), time.Since(started).Seconds())
+		}()
+	}
+	if cmd == "doctor" && *since == "" {
+		*since = "15m"
 	}
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
@@ -144,6 +160,13 @@ func query(cmd string, args []string, stdout io.Writer) error {
 		out, err = eng.TraceDiff(ctx, req)
 	case "list-services":
 		out, err = eng.ListServices(ctx, *since, *until)
+	case "doctor":
+		var rep digest.DoctorReport
+		rep, err = eng.Doctor(ctx, *since, *until)
+		if err == nil && !*asJSON {
+			return printDoctor(stdout, rep)
+		}
+		out = rep
 	}
 	if err != nil {
 		return err
@@ -154,6 +177,25 @@ func query(cmd string, args []string, stdout io.Writer) error {
 		enc.SetIndent("", "  ")
 	}
 	return enc.Encode(out)
+}
+
+func printDoctor(w io.Writer, rep digest.DoctorReport) error {
+	marks := map[string]string{"ok": "ok  ", "warn": "WARN", "fail": "FAIL", "info": "    "}
+	var b strings.Builder
+	fmt.Fprintf(&b, "spoor doctor, window %s\n", rep.Window)
+	sig := ""
+	for _, c := range rep.Checks {
+		if c.Signal != sig {
+			sig = c.Signal
+			fmt.Fprintf(&b, "\n%s\n", sig)
+		}
+		fmt.Fprintf(&b, "  %s %s\n", marks[c.Status], c.Message)
+	}
+	if rep.Suggested != "" {
+		fmt.Fprintf(&b, "\nSuggested config (review before use):\n\n%s", rep.Suggested)
+	}
+	_, err := io.WriteString(w, b.String())
+	return err
 }
 
 func envOr(key, def string) string {

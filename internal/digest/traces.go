@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/asinha07/spoor/internal/backend"
-	"github.com/asinha07/spoor/internal/links"
 	"github.com/asinha07/spoor/internal/window"
 )
 
@@ -106,7 +105,7 @@ func (e *Engine) scoreTraces(ctx context.Context, svc, op string, spec window.Sp
 		}
 	}
 
-	link := links.LogsQL(e.uiBase(e.cfg.Traces.Backend), filter, hist.Start, spec.Window.End)
+	link := e.tracesLink(filter, hist.Start, spec.Window.End)
 	minSpans := float64(e.cfg.Scoring.MinSpans)
 	var out []Finding
 	for _, n := range names {

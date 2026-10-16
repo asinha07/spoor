@@ -1,8 +1,8 @@
 {
   "scenario": "catalog-one-product",
   "description": "The product catalog fails for exactly one product ID.",
-  "since": "2026-10-16T03:52:00Z",
-  "until": "2026-10-16T04:22:00Z",
+  "since": "2026-10-16T08:24:00Z",
+  "until": "2026-10-16T08:54:00Z",
   "service": "product-catalog",
   "kinds": [
     "error_rate_up",

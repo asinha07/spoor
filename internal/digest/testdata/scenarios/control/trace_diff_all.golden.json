@@ -1,7 +1,7 @@
 {
-  "summary": "No significant change in 7 services during 2026-10-15T07:52:00Z/2026-10-15T08:22:00Z compared with the previous baseline.",
-  "window": "2026-10-15T07:52:00Z/2026-10-15T08:22:00Z",
-  "baseline": "2026-10-15T04:52:00Z/2026-10-15T07:52:00Z (previous, 6 windows)",
+  "summary": "No significant change in 7 services during 2026-10-15T12:24:00Z/2026-10-15T12:54:00Z compared with the previous baseline.",
+  "window": "2026-10-15T12:24:00Z/2026-10-15T12:54:00Z",
+  "baseline": "2026-10-15T09:24:00Z/2026-10-15T12:24:00Z (previous, 6 windows)",
   "findings": [],
   "truncated": 0,
   "coverage": {

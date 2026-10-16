@@ -93,19 +93,22 @@ used. It never writes to your backends and has no shell or file access.
 
 **Credentials.**
 
-- Give Spoor **read-only** backend credentials (`SPOOR_*_TOKEN`). VictoriaMetrics and VictoriaLogs enterprise or
-  `vmauth` can scope a token to the select paths.
+- Give Spoor **read-only** backend credentials (`SPOOR_*_TOKEN`, or `SPOOR_*_USER` / `SPOOR_*_PASSWORD` for Basic
+  auth). VictoriaMetrics and VictoriaLogs enterprise or `vmauth` can scope a token to the select paths. Through
+  Grafana's datasource proxy, use a service account with the Viewer role (see
+  [Behind Grafana](configuration.md#behind-grafana)).
 - Pass tokens through environment variables or a Secret, never in the config file or in Git.
 - Always set `SPOOR_HTTP_TOKEN` (or `--auth-token`) when serving HTTP. Spoor compares it in constant time, answers
   `401` otherwise, and logs a warning at startup if no token is set. `/healthz` and `/metrics` stay open for probes
   and scrapers; restrict them with a network policy if needed.
 
-**What reaches the model.** Tool responses go to whatever LLM your agent uses. Spoor sends aggregates, pattern
-templates and **one example line per log pattern**. Example lines are redacted (emails, JWTs, bearer tokens,
-password/secret/API-key values, card-like digit runs, UUIDs, long hex IDs), but redaction is pattern-based and
-cannot catch everything, and IP addresses are not masked. If your error logs can contain personal data, review
-what `spoor new-errors` returns on your data before connecting an external model, and add ignore rules upstream
-(log processing) for fields that must never leave.
+**What reaches the model.** Tool responses go to whatever LLM your agent uses. Spoor sends aggregates, error
+patterns and **one example line per error**. Every text field is redacted before it leaves Spoor: emails, JWTs,
+bearer tokens, password/secret/API-key values, card-like digit runs, IPv4 addresses, UUIDs, long hex IDs, and
+identifiers that mix letters and digits (see [redaction](how-it-works.md#9-redaction)). Redaction is pattern-based:
+identifiers made only of letters, names and free text are not caught. Add `redact` rules for your formats, review
+what `spoor new-errors` returns on your data before connecting an external model, and drop fields that must never
+leave in your log pipeline.
 
 **Scope.** Anyone who can call Spoor can see what changed in every service the backends hold. If teams must not
 see each other's services, run one Spoor per team with backends or tokens scoped to that team.
@@ -116,7 +119,7 @@ see each other's services, run one Spoor per team with backends or tokens scoped
 | --- | --- |
 | CPU | Mostly idle. 50m request; a call spends most of its time waiting on backends. |
 | Memory | 64 Mi idle. Attribution makes three span reads per call, each capped at 50,000 rows; budget roughly 256–512 Mi per replica under concurrent use. The Kubernetes limit is 512 Mi. |
-| Backend load | A `what_changed` for one service is a few dozen small aggregate queries (rate, quantile, `stats`) over the window and its baseline, plus three span reads for attribution when something changed. An all-services scan multiplies the per-service part by the number of services (up to `max_services`, four at a time). |
+| Backend load | Logs: three or four parallel queries per call whatever the number of services (patterns with exact error counts, line totals); the error filter runs once over the window and once over the baseline. Metrics and traces: about 15 small aggregate queries per service, plus three span reads for attribution when something changed. A full scan of 7 services with all signals is about 110 requests; a logs-only scan is about 6. Add `--stats` to any CLI command to measure yours. Text-regex error filters scan more data than field filters. |
 | Latency | Typically 1–5 s for one service, longer for all-services scans on busy backends. Every backend request is bounded by `timeout` (default 20 s). |
 
 If your backends are under pressure, keep `max_services` modest, ask agents to pass `service` when they know it,
@@ -172,12 +175,13 @@ Spoor follows semantic versioning from 1.0. Before 1.0, minor versions may chang
 
 ## Production checklist
 
+- [ ] `spoor doctor --config …` has no `FAIL`, and every `WARN` is understood
 - [ ] `spoor list-services` shows every service with the signals you expect
-- [ ] A quiet period returns few or no findings; a known past incident is found (replay it with `--since/--until`)
+- [ ] Past incidents and quiet periods replayed with [`bench/replay.py`](../bench/replay.py): incidents found, quiet windows quiet
 - [ ] `SPOOR_HTTP_TOKEN` set; tokens in a Secret or env file, not in Git
 - [ ] Backend credentials are read-only
 - [ ] `ui_url` set so evidence links open for humans
 - [ ] Load generators, collectors and synthetic checks in `ignore_services`
 - [ ] Image or binary version pinned
 - [ ] `/metrics` scraped and the two alerts above in place
-- [ ] Example log lines reviewed for data that must not reach your LLM provider
+- [ ] Output reviewed for data that must not reach your LLM provider; `redact` rules added for your ID formats

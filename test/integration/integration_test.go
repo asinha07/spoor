@@ -140,10 +140,13 @@ func TestScenarios(t *testing.T) {
 				results[c.Name] = out
 			}
 			all := results["what_changed_all"].(digest.Envelope)
-			for sig, cov := range all.Coverage {
-				if cov != "ok" {
+			for _, sig := range []string{digest.SignalMetrics, digest.SignalLogs, digest.SignalTraces} {
+				if cov := all.Coverage[sig]; cov != "ok" {
 					t.Errorf("coverage %s = %q, want ok", sig, cov)
 				}
+			}
+			if !strings.Contains(all.Coverage["logs_lines"], "error lines in") {
+				t.Errorf("coverage should count log lines: %v", all.Coverage)
 			}
 			logTop(t, all)
 			if d.truth.Service == "" {

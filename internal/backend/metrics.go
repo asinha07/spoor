@@ -21,6 +21,12 @@ func NewMetrics(base, token string, timeout time.Duration) *Metrics {
 	return &Metrics{http: h}
 }
 
+// WithBasicAuth sends HTTP Basic credentials when no bearer token is set.
+func (m *Metrics) WithBasicAuth(user, pass string) *Metrics {
+	m.http.user, m.http.pass = user, pass
+	return m
+}
+
 // Point is one sample of a range query.
 type Point struct {
 	T time.Time

@@ -1,18 +1,21 @@
 {
-  "summary": "No significant change in ad during 2026-10-15T22:52:00Z/2026-10-15T23:22:00Z compared with the previous baseline. Errors at their usual rate, present before this window and not a new problem: ad (4 error lines now vs 5 per window before, e.g. \"ad index refresh failed\").",
-  "window": "2026-10-15T22:52:00Z/2026-10-15T23:22:00Z",
-  "baseline": "2026-10-15T19:52:00Z/2026-10-15T22:52:00Z (previous, 6 windows)",
+  "summary": "No significant change in ad during 2026-10-16T03:24:00Z/2026-10-16T03:54:00Z compared with the previous baseline. Errors present before this window and not significantly up, so not a new problem: ad (6 error lines now vs 8 usual, -25%, all log lines +9%; e.g. \"ad index refresh failed\").",
+  "window": "2026-10-16T03:24:00Z/2026-10-16T03:54:00Z",
+  "baseline": "2026-10-16T00:24:00Z/2026-10-16T03:24:00Z (previous, 6 windows)",
   "findings": [],
   "steady_errors": [
     {
       "service": "ad",
-      "errors_now": 4,
-      "errors_usual": 5,
+      "errors_now": 6,
+      "errors_usual": 8,
+      "change": "-25%",
+      "log_lines_change": "+9%",
       "example": "ad index refresh failed"
     }
   ],
   "truncated": 0,
   "coverage": {
-    "logs": "ok"
+    "logs": "ok",
+    "logs_lines": "6 error lines in 467 log lines"
   }
 }

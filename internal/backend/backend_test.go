@@ -123,3 +123,42 @@ func TestQuoting(t *testing.T) {
 		t.Errorf("Eq = %s", got)
 	}
 }
+
+// Grafana's datasource proxy: a base URL with a path prefix and Basic auth.
+func TestBasicAuthAndPathPrefix(t *testing.T) {
+	var gotPath, gotUser, gotPass string
+	var basic bool
+	s := server(t, func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotUser, gotPass, basic = r.BasicAuth()
+		_, _ = io.WriteString(w, `{"n":"1"}`+"\n")
+	})
+	l := NewLogsQL(s.URL+"/api/datasources/proxy/uid/vl", "", time.Second).WithBasicAuth("u", "p")
+	rows, err := l.Query(context.Background(), "*", time.Unix(0, 0), time.Unix(60, 0), 0)
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("rows=%v err=%v", rows, err)
+	}
+	if gotPath != "/api/datasources/proxy/uid/vl/select/logsql/query" {
+		t.Errorf("path = %s", gotPath)
+	}
+	if !basic || gotUser != "u" || gotPass != "p" {
+		t.Errorf("basic auth = %v %q %q", basic, gotUser, gotPass)
+	}
+	before, _ := Stats()
+	_, _ = l.Query(context.Background(), "*", time.Unix(0, 0), time.Unix(60, 0), 0)
+	if after, _ := Stats(); after != before+1 {
+		t.Errorf("Stats requests %d -> %d, want +1", before, after)
+	}
+}
+
+func TestBearerWinsOverBasic(t *testing.T) {
+	var auth string
+	s := server(t, func(w http.ResponseWriter, r *http.Request) {
+		auth = r.Header.Get("Authorization")
+		_, _ = io.WriteString(w, "")
+	})
+	_, _ = NewLogsQL(s.URL, "tok", time.Second).WithBasicAuth("u", "p").Query(context.Background(), "*", time.Unix(0, 0), time.Unix(60, 0), 0)
+	if auth != "Bearer tok" {
+		t.Errorf("Authorization = %q, want bearer", auth)
+	}
+}

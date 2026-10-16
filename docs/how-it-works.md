@@ -53,37 +53,87 @@ Special cases:
 
 ## 3. Error logs
 
-VictoriaLogs collapses error lines into patterns on the server (`collapse_nums prettify`), so
-`charge failed for order 81723` and `charge failed for order 99102` count as one pattern
-`charge failed for order <N>`. Spoor compares the top 200 patterns per service in the window and the baseline:
+Logs are scored for **all services at once** (they are not limited by `max_services`), in three or four queries
+whatever the number of services, run in parallel:
 
-- **New pattern**: present in the window (at least `min_pattern_count` times), absent from the baseline.
-  Score starts at 0.5 and grows with volume.
-- **Spiking pattern**: at least 4× its usual rate, z ≥ 3, **and** a Poisson tail probability, multiplied by the
-  number of patterns checked (Bonferroni correction), below 0.001. Checking 50 patterns per service per call means
-  some will blip by chance; the correction keeps those out.
+| Query | Purpose |
+| --- | --- |
+| Error patterns in the window | Top 200 patterns per service (`sort … partition by`), plus each service's exact error-line total (`total_stats`, computed before the limit) |
+| Error patterns in the baseline | Same, plus each service's exact error lines per baseline sub-window |
+| Line totals | All lines and lines with none of the `severity_fields`, per service, for the window and each sub-window, plus lines with no service field. No error filter, so it stays cheap even when the error filter matches message text. With `baseline=1d`/`7d` this is two queries. |
+| Verification (only when needed) | A direct baseline count for "new" errors, when a service's baseline hit the 200-pattern cap |
 
-Every log finding includes one example line, redacted (emails, JWTs, bearer tokens, password/secret/API-key
-values, card-like digit runs, UUIDs and long hex IDs are masked; IP addresses are not), and its first-seen time.
+The error filter, the expensive part when it matches message text, runs once over the window and once over the
+baseline.
+
+### From lines to errors
+
+Real error messages carry IDs, values and stack traces, so one error produces thousands of distinct strings. Spoor
+turns each message into a **pattern** on the server, without changing stored logs:
+
+1. **JSON messages:** if the message is JSON, the first of `logs.message_fields` found (`message`, `msg`,
+   `error.message`, …) becomes the text, and the first of `logs.code_fields` found (`error_code`, `code`, …) is put
+   in front of it after the steps below, so a code like `TEMPLATE_404` is kept as is. Pretty-printed JSON errors keep
+   their identity instead of all becoming `{`;
+2. **plain text:** keep the first line only (stack traces vary). JSON (starting with `{` or a JSON array) is never
+   cut; a line starting with `[ERROR]` or similar is;
+3. collapse whitespace and drop a leading timestamp;
+4. apply your `logs.normalize` rules;
+5. replace tokens that mix letters and digits with `<ID>` (`normalize_ids`: `ord_7f3k2m9q`, `OLJCESPC7Z`, `ord_99a1`);
+6. collapse numbers, UUIDs and IPs (`collapse_nums`).
+
+Patterns are then grouped into **families**: the pattern's first eight fixed words, ignoring quoted values,
+`key=value` values, anything containing a digit, a leading level word, and log-prefix brackets that hold a level or a
+variable value (`[ERROR]`, `[http-nio-8080-exec-1]`, `[correlationId:…]`). A bracketed class name is kept without
+its line number (`[InvoiceController.java:88]` counts as `invoicecontroller.java`), so two different
+errors from one class stay apart. `no route matched for "home"` and
+`no route matched for "pricing-x2"` are one family. Findings name the most frequent pattern of a family and
+say how many variants were grouped. With `logs.pattern_field` set, the field's value is the pattern instead.
+
+### New and spiking errors
+
+Families are compared between window and baseline:
+
+- **New error** (`new_log_pattern`): the family never occurred in the baseline, and it has at least 10 lines in the
+  window, or at least `min_pattern_count` lines making up 5% or more of the service's error lines. Four lines of a
+  new message in a service that logs hundreds of errors per window are noise. If a service's baseline patterns hit the 200 cap, a family missing from that list may still have
+  occurred below it, so Spoor checks with a direct count (its distinctive words, case-insensitive) before calling it
+  new. A new variant of an existing error is not new. Score starts at 0.5 and grows with volume.
+- **Spiking error** (`spiking_log_pattern`): at least 4× its usual rate, z ≥ 3, **and** a Poisson tail probability,
+  multiplied by the number of families checked (Bonferroni correction), below 0.001. Checking dozens of families
+  per call means some will blip by chance; the correction keeps those out.
+
+### Error volume
+
+A service can get worse without any new error: the same errors, more often. Spoor compares each service's error
+lines in the window with its baseline sub-windows using the same robust z-score as metrics (15% relative noise
+floor, 5-line absolute floor). When total line counts are known, the **share** of error lines must rise as well, so
+a traffic increase alone (errors and lines both +60%) is not reported. A clear rise (z ≥ 3 on both, at least +30%,
+and a small Poisson tail probability) becomes an `error_volume_up` finding:
+
+```
+Error log volume up +70%: 174.5 → 297 lines per window (share of log lines 4.78% → 8.20%)
+```
 
 ### Steady errors
 
-Most production systems have errors that are always there. Agents love to blame them. When a service's error lines,
-**summed across all its patterns**, run at their usual rate (no more than 2× the baseline, or not significantly
-more), Spoor lists the service under `steady_errors` with the count now, the usual count and the most frequent
-pattern:
+Most production systems have errors that are always there, and agents love to blame them. Services with error lines
+but no log finding are listed under `steady_errors`, with the change against the baseline and, when known, the change
+in all their log lines:
 
 ```json
 "steady_errors": [
-  {"service": "product-catalog", "errors_now": 14, "errors_usual": 11.8,
-   "example": "failed to load product <N>: database query returned error"}
+  {"service": "product-catalog", "errors_now": 14, "errors_usual": 11, "change": "+27%",
+   "log_lines_change": "-4%", "example": "failed to load product <ID>: database query returned error"}
 ]
 ```
 
-The summary says these errors were "present before this window and not a new problem", and the MCP server
-instructions tell the agent not to report them as the cause unless nothing else changed. Services that have a
-finding are never listed as steady. Patterns are summed because chronic errors often fragment (one pattern per
-product ID), and each fragment alone is too small to judge.
+Steady means *not significantly up*, not *healthy*. The summary says these errors were "present before this window"
+and the MCP instructions tell the agent not to report them as the cause unless nothing else changed. A large
+percentage on a handful of lines is noise; the statistics account for that, the percentage does not.
+
+Every log finding carries one example line and its first-seen time. All text is redacted (see
+[§ 9](#9-redaction)).
 
 ## 4. Spans
 
@@ -111,7 +161,9 @@ where the failure started. For each service with an error finding:
 - The origin service gets an `error_origin` finding, scored `0.5 + 0.49 × share`, e.g.
   `Failures start here, in "POST /charge" (100% of 100 failed traces)`.
 
-**Latency.** A span's *self time* is its duration minus its direct children's. If one service accounts for at least
+**Latency.** A span's *self time* is its duration minus the time covered by its direct children. With span start
+times (`traces.start_field`, default `start_time_unix_nano`), children that run in parallel are counted once: Spoor
+takes the union of their intervals, clipped to the parent. Without start times, child durations are summed. If one service accounts for at least
 half of all added self time (counting only services whose mean self time grew by 10 ms or more), and its top
 operation's mean self time grew at least 1.5×, it gets a `latency_origin` finding, provided some latency finding
 exists to explain (in that service or as an echo elsewhere) (`Added latency starts here, in "GetProduct": self time 4 ms → 180 ms`), and latency findings in services that
@@ -140,24 +192,56 @@ compact JSON the agent will actually receive:
 
 ## 8. Coverage
 
-Every response carries `coverage`, one entry per signal:
+Every response carries `coverage`. One entry per signal:
 
 | Value | Meaning |
 | --- | --- |
 | `ok` | The signal answered and had data |
 | `no data for service "<name>"` / `no data in window` | The backend answered but holds nothing for this scope |
-| `partial (N/M services failed): …` | Some per-service queries failed; findings for those services are missing |
-| `not configured` | The backend's URL is empty |
 | `no data in baseline period; …` | Nothing to compare with; that signal's findings were dropped |
+| `no error lines: the error filter matched none of N log lines; …` | Logs arrive, but Spoor cannot see errors in them. Not evidence of health. |
+| `N log lines in window, but none has a <field> field; …` | Logs arrive, but the service field is wrong |
+| `partial (…)` | Some queries failed; the findings shown are incomplete |
+| `not configured` | The backend's URL is empty |
 | `error: …` | The backend failed or timed out; findings from it are missing |
+
+And notes:
+
+| Key | Meaning |
+| --- | --- |
+| `logs_lines` | Error lines and total lines in scope, the share with none of the `severity_fields`, and lines with no service field |
+| `logs_patterns` | A service had more than 200 distinct error patterns; says how many possible new errors were checked against the full baseline (or that none needed checking) |
+| `logs_volume` | Line totals failed; error counts still work, but error share and blind-spot checks are skipped |
 | `scope` | An all-services scan hit `max_services` |
 | `attribution` | Attribution failed; findings are not cause/echo labelled |
+
+When 30% or more of log lines carry no severity field, or no service field, the summary says so too.
+`spoor doctor` turns these into concrete config suggestions.
+
+## 9. Redaction
+
+Every text field Spoor returns (summary, titles, examples, before/after values, steady-error examples, coverage
+notes) is redacted at the end of each call, not just log examples:
+
+- emails, JWTs, bearer/basic tokens, `password=`/`secret=`/`token=`/API-key values;
+- card-like digit runs, IPv4 addresses, UUIDs, hex strings of 24+ characters;
+- identifiers: tokens of six or more characters with a segment that mixes digits and at least two letters
+  (`ord_7f3k2m9q`, `OLJCESPC7Z`). Service names, timestamps and numbers with units (`1500ms`) are kept;
+- your own `redact` rules.
+
+Trace IDs and evidence links are kept: they are needed to verify a finding. Identifiers made only of letters cannot
+be told apart from words; add `redact` rules for them.
 
 ## Known limitations
 
 - Attribution reads at most 50,000 span rows per read, unsorted. On very busy systems a trace can be cut, which can
   mislabel an origin. It compares self time against one baseline window, while the scorers use several.
-- Log patterns are compared on the top 200 per window, so a pattern that was rare in the baseline can look new.
+- JSON errors whose text is in a key not listed in `logs.message_fields` keep their whole body as the pattern:
+  still distinct, but titles are noisy. `spoor doctor` reports them.
+- Families are a heuristic (first eight fixed words). Two different errors that share a long prefix and differ
+  only in a quoted value or a token with digits are merged; set `logs.pattern_field` if you have error codes.
+- Metrics and traces are still queried per service (a full scan of 25 services with all signals is around 100
+  small queries); logs are batched. Pass `service` when you know it.
 - A brand-new span name that fails from its first appearance is not scored by the span scorer (metrics, logs and
   attribution still catch it).
 - All-services scans visit at most `max_services` services, alphabetically.

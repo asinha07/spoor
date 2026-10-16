@@ -1,13 +1,31 @@
 # Spoor configuration reference. Every key is optional; these are the defaults.
+# Unknown keys are rejected. Run `spoor doctor --config this-file` to check it
+# against your backends; it suggests service and severity fields for your logs.
 # Query templates receive {{.Service}} (already quoted) and {{.Window}} (e.g. 30m).
 
 timeout: 20s
-max_services: 25            # cap for all-services scans
+max_services: 25            # cap for all-services scans (metrics and traces are queried per service)
 ignore_services: []         # e.g. [load-generator, otel-collector]: skipped in scans and attribution
+
+# Extra redaction, applied to every text field Spoor returns, after the
+# built-in rules (emails, tokens, JWTs, card-like numbers, IPs, UUIDs, long hex,
+# and identifiers that mix letters and digits).
+redact: []
+#  - regex: 'sess_[a-z]{12}'
+#    replace: '<SESSION>'
+
+# Evidence links open Grafana Explore instead of VMUI when a datasource is set.
+grafana:
+  url: ""                    # e.g. https://grafana.example.com
+  metrics_datasource: {uid: "", type: ""}   # type e.g. prometheus
+  logs_datasource: {uid: "", type: ""}      # type e.g. victoriametrics-logs-datasource
+  traces_datasource: {uid: "", type: ""}
 
 metrics:
   url: http://localhost:8428
-  bearer_token: ""
+  bearer_token: ""           # or SPOOR_METRICS_TOKEN
+  username: ""               # HTTP Basic auth, used when no bearer token is set
+  password: ""               # or SPOOR_METRICS_USER / SPOOR_METRICS_PASSWORD
   ui_url: ""                 # base for evidence links; defaults to url
   service_label: service_name
   request_rate: 'sum(rate(http_server_request_duration_seconds_count{service_name={{.Service}}}[{{.Window}}]))'
@@ -27,22 +45,47 @@ metrics:
 logs:
   url: http://localhost:9428
   bearer_token: ""
+  username: ""
+  password: ""
   ui_url: ""
   service_field: service.name
-  error_filter: 'severity_text:~"(?i)^(error|fatal|critical)$"'
+  # Fields that may hold a log level. Spoor builds the error filter from them
+  # (values err, error, fatal, crit, critical, alert, emerg, panic, severe) and
+  # reports the share of lines that carry none of them.
+  severity_fields: [severity_text]
+  # Replaces the filter built from severity_fields. Use it when some levels
+  # are only in the message text; `spoor doctor` suggests one.
+  error_filter: ""
+  # Replace tokens that mix letters and digits (order, cart, product IDs) with
+  # <ID> before grouping error lines, so one error is one pattern.
+  normalize_ids: true
+  # Extra replacements applied to messages before grouping (RE2 syntax).
+  normalize: []
+  #  - regex: '\b(ord|sku)_[A-Za-z0-9]+\b'
+  #    replace: '${1}_<ID>'
+  # Group error lines by this field (an error code, exception class) instead
+  # of by message text.
+  pattern_field: ""
+  # JSON messages: the first of these keys found is the error text, and the
+  # first code key found is put in front of it. [] turns it off.
+  message_fields: [message, msg, error.message, error_message, errorMessage, exception.message, error, err, exception]
+  code_fields: [error_code, errorCode, error.code, code, exception.type, error.type]
 
 traces:
   url: http://localhost:10428
   bearer_token: ""
+  username: ""
+  password: ""
   ui_url: ""
   service_field: resource_attr:service.name
   name_field: name
   duration_field: duration   # nanoseconds
+  start_field: start_time_unix_nano  # lets self time count parallel child calls once; "" to sum children
   error_filter: 'status_code:=2'
 
 scoring:
   report_threshold: 0.5      # 0.5 = robust z-score of 3
   baseline_sub_windows: 6    # history used to measure normal variation
   min_request_rate: 0.05     # req/s; quieter services skip error/latency scoring
-  min_pattern_count: 3       # hits a log pattern needs in the window
+  min_pattern_count: 3       # error lines an error needs in the window to count
   min_spans: 5               # spans a span name needs in window and baseline

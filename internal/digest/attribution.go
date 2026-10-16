@@ -3,11 +3,12 @@ package digest
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/asinha07/spoor/internal/backend"
-	"github.com/asinha07/spoor/internal/links"
 	"github.com/asinha07/spoor/internal/window"
 )
 
@@ -41,6 +42,7 @@ const (
 type spanRow struct {
 	traceID, spanID, parentID, svc, name string
 	dur                                  float64
+	start                                int64 // Unix ns; 0 when unknown
 }
 
 type opKey struct{ svc, name string }
@@ -72,8 +74,14 @@ func (e *Engine) spanRows(ctx context.Context, filter string, r window.Range) ([
 	t := e.cfg.Traces
 	// A quoted field name inside a fields list misbehaves in some versions, so
 	// copy the service field to a plain alias first.
-	q := fmt.Sprintf("%s %s | copy %s as spoor_svc, %s as spoor_name, %s as spoor_dur | fields trace_id, span_id, parent_span_id, spoor_svc, spoor_name, spoor_dur",
-		realSpans, filter, backend.Quote(t.ServiceField), backend.Quote(t.NameField), backend.Quote(t.DurationField))
+	q := fmt.Sprintf("%s %s | copy %s as spoor_svc, %s as spoor_name, %s as spoor_dur", realSpans, filter,
+		backend.Quote(t.ServiceField), backend.Quote(t.NameField), backend.Quote(t.DurationField))
+	fields := "trace_id, span_id, parent_span_id, spoor_svc, spoor_name, spoor_dur"
+	if t.StartField != "" {
+		q += ", " + backend.Quote(t.StartField) + " as spoor_start"
+		fields += ", spoor_start"
+	}
+	q += " | fields " + fields
 	rows, err := e.traces.Query(ctx, q, r.Start, r.End, attributionSpanLimit)
 	if err != nil {
 		return nil, err
@@ -86,6 +94,7 @@ func (e *Engine) spanRows(ctx context.Context, filter string, r window.Range) ([
 		out = append(out, spanRow{
 			traceID: row["trace_id"], spanID: row["span_id"], parentID: row["parent_span_id"],
 			svc: row["spoor_svc"], name: row["spoor_name"], dur: row.Float("spoor_dur"),
+			start: parseInt(row["spoor_start"]),
 		})
 	}
 	return out, nil
@@ -192,16 +201,21 @@ func (a *attribution) errorOrigins(failed, all []spanRow) {
 // maxTreeDepth bounds the ancestor walk (and breaks any parent-ID cycle).
 const maxTreeDepth = 256
 
+// selfTimes computes each operation's self time: its duration minus the
+// time covered by its direct children. With start times, children that run
+// in parallel are counted once (the union of their intervals, clipped to the
+// parent); without them, child durations are summed.
 func selfTimes(rows []spanRow) map[opKey]*selfStat {
-	childSum := map[string]float64{} // trace|span -> sum of direct children durations
+	children := map[string][]spanRow{} // trace|span -> direct children
 	for _, s := range rows {
 		if s.parentID != "" {
-			childSum[s.traceID+"|"+s.parentID] += s.dur
+			k := s.traceID + "|" + s.parentID
+			children[k] = append(children[k], s)
 		}
 	}
 	out := map[opKey]*selfStat{}
 	for _, s := range rows {
-		self := s.dur - childSum[s.traceID+"|"+s.spanID]
+		self := s.dur - childTime(s, children[s.traceID+"|"+s.spanID])
 		if self < 0 {
 			self = 0
 		}
@@ -407,5 +421,52 @@ func (e *Engine) applyAttribution(a *attribution, scope []string, fs []Finding, 
 }
 
 func linkTraces(e *Engine, filter string, spec window.Spec) string {
-	return links.LogsQL(e.uiBase(e.cfg.Traces.Backend), filter, spec.Window.Start, spec.Window.End)
+	return e.tracesLink(filter, spec.Window.Start, spec.Window.End)
+}
+
+// childTime is the part of parent's duration covered by its children.
+func childTime(parent spanRow, kids []spanRow) float64 {
+	if len(kids) == 0 {
+		return 0
+	}
+	known := parent.start > 0
+	for _, k := range kids {
+		known = known && k.start > 0
+	}
+	if !known {
+		sum := 0.0
+		for _, k := range kids {
+			sum += k.dur
+		}
+		return sum
+	}
+	type iv struct{ a, b float64 }
+	pa := float64(parent.start)
+	pb := pa + parent.dur
+	ivs := make([]iv, 0, len(kids))
+	for _, k := range kids {
+		a := math.Max(float64(k.start), pa)
+		b := math.Min(float64(k.start)+k.dur, pb)
+		if b > a {
+			ivs = append(ivs, iv{a, b})
+		}
+	}
+	sort.Slice(ivs, func(i, j int) bool { return ivs[i].a < ivs[j].a })
+	covered := 0.0
+	for i := 0; i < len(ivs); {
+		a, b := ivs[i].a, ivs[i].b
+		j := i + 1
+		for j < len(ivs) && ivs[j].a <= b {
+			b = math.Max(b, ivs[j].b)
+			j++
+		}
+		covered += b - a
+		i = j
+	}
+	return covered
+}
+
+func parseInt(s string) int64 {
+	n, _ := strconv.ParseInt(s, 10, 64)
+	return n
 }

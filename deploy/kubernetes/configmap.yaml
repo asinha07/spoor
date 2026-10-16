@@ -16,5 +16,7 @@ data:
       url: http://victorialogs.monitoring.svc:9428
     traces:
       url: http://victoriatraces.monitoring.svc:10428
+    # Run `spoor doctor --config` against these backends first: it suggests
+    # logs.service_field, logs.severity_fields and error_filter for your logs.
     # Traffic generators and infrastructure to leave out of scans.
     ignore_services: []

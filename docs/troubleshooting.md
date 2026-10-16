@@ -1,6 +1,7 @@
 # Troubleshooting
 
-Start with `spoor list-services --since 30m --pretty` and look at `coverage`. Most problems show up there.
+Start with `spoor doctor --since 15m` (add `--config` if you use one). It checks every backend, finds the fields
+your logs actually use, and suggests config. Then look at `coverage` in any response: most problems show up there.
 
 ## Coverage says `error: …`
 
@@ -8,12 +9,42 @@ Spoor could not reach a backend, or the backend rejected a query.
 
 - `backend unavailable: … connection refused`: wrong URL or port, or the backend is down. Check
   `SPOOR_*_URL` and try `curl <url>/health`.
-- `… 401` / `403`: the backend needs a token. Set `SPOOR_METRICS_TOKEN`, `SPOOR_LOGS_TOKEN` or `SPOOR_TRACES_TOKEN`.
+- `… 401` / `403`: the backend needs credentials. Set `SPOOR_METRICS_TOKEN`, `SPOOR_LOGS_TOKEN` or
+  `SPOOR_TRACES_TOKEN`, or `SPOOR_*_USER` and `SPOOR_*_PASSWORD` for Basic auth (Grafana's datasource proxy accepts
+  either).
 - `… 400` with a query error: one of your query templates is invalid for your data. Run it in VMUI with a real
   service name and window substituted.
 - `context deadline exceeded`: the backend is slow. Raise `timeout`, narrow the window, or pass `service`.
 
 The other signals still answer; only the failing one is missing.
+
+## Coverage says `no error lines` or `none has a … field`
+
+Logs arrive, but Spoor cannot see errors in them, or cannot attribute them to services. An empty result here is
+**not** evidence of health, and the summary says so.
+
+- `no error lines: the error filter matched none of N log lines`: your logs keep their level in a field other than
+  `severity_fields` (default `severity_text`), or only in the message text. Run `spoor doctor`; it lists the level
+  fields it finds, their values, and how many lines carry a level only in the text, and writes a matching
+  `severity_fields` / `error_filter`.
+- `N log lines in window, but none has a service.name field`: set `logs.service_field` to the field that holds the
+  service (`doctor` lists candidates with how many lines and distinct values each has).
+- `coverage.logs_lines` says a large share of lines have no severity field, or no service field: those lines are
+  partly invisible. Map them, or accept the gap knowingly.
+
+## One error shows up as many findings, or "(+N variants)" is large
+
+The same error with different IDs or values in its message. Spoor normalizes common ID shapes and groups variants
+into one finding, but a value it can't recognise (say, letters-only session IDs) still varies. `spoor doctor` lists the
+messages with the most variants. Add a `logs.normalize` rule for that value, or set `logs.pattern_field` to an error
+code field if your logs have one. See [Error messages full of IDs](configuration.md#error-messages-full-of-ids).
+
+## JSON errors all look alike, or titles show raw JSON
+
+Spoor reads JSON error messages through `logs.message_fields` (default: `message`, `msg`, `error.message`, …) and
+`logs.code_fields`. If your JSON keeps the error text under another key, its whole body becomes the pattern: errors
+stay distinct, but titles are long. `spoor doctor` reports how many such patterns it sees; add your key to
+`logs.message_fields` (first match wins).
 
 ## A service is missing from `list_services`
 
@@ -33,7 +64,8 @@ The other signals still answer; only the failing one is missing.
 2. **Check the window.** The window must include the problem, and the baseline must not. If the problem started
    two hours ago, `since=30m` compares a broken window with a broken baseline. Use `--since` with the time it
    started.
-3. **Problems that were always there are not changes.** Look at `steady_errors`.
+3. **Problems that were always there are not changes.** Look at `steady_errors` and its `change` column: a
+   service can be up 40% and still not significantly so if it varies that much normally.
 4. **Low traffic.** Services below `min_request_rate` skip error-rate and latency scoring. Lower it if your
    services are quiet.
 5. **Lower the threshold** to see near misses: `SPOOR_REPORT_THRESHOLD=0.3 spoor what-changed …`.

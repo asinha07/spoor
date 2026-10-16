@@ -1,10 +1,11 @@
 {
-  "summary": "No significant change in accounting during 2026-10-15T12:52:00Z/2026-10-15T13:22:00Z compared with the previous baseline.",
-  "window": "2026-10-15T12:52:00Z/2026-10-15T13:22:00Z",
-  "baseline": "2026-10-15T09:52:00Z/2026-10-15T12:52:00Z (previous, 6 windows)",
+  "summary": "Logs: the error filter matched none of 129 log lines, so Spoor cannot see log errors; this is not evidence of health (run spoor doctor).",
+  "window": "2026-10-15T17:24:00Z/2026-10-15T17:54:00Z",
+  "baseline": "2026-10-15T14:24:00Z/2026-10-15T17:24:00Z (previous, 6 windows)",
   "findings": [],
   "truncated": 0,
   "coverage": {
-    "logs": "ok"
+    "logs": "no error lines: the error filter matched none of 129 log lines; check logs.severity_fields or logs.error_filter (run spoor doctor)",
+    "logs_lines": "0 error lines in 129 log lines"
   }
 }

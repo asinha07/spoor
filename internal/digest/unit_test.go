@@ -281,8 +281,29 @@ func TestApplyAttributionNeedsAChange(t *testing.T) {
 
 func TestQueryBuilders(t *testing.T) {
 	e := New(config.Default(), nil, nil, nil)
-	if got, want := e.errorPatternQuery("pay"), `"service.name":="pay" severity_text:~"(?i)^(error|fatal|critical)$" | copy _msg as raw | collapse_nums prettify | stats by (_msg) count() n, min(_time) first, any(raw) example | sort by (n desc) | limit 200`; got != want {
-		t.Errorf("errorPatternQuery:\n got %s\nwant %s", got, want)
+	pq := e.patternQuery(e.logScope([]string{"pay"}, false), []window.Range{{Start: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), End: time.Date(2026, 1, 1, 0, 30, 0, 0, time.UTC)}})
+	for _, want := range []string{
+		`"service.name":="pay" severity_text:~`,
+		`| copy _msg as raw | unpack_json from _msg fields ("message", "msg"`,
+		`| format if ("spoor_j_message":*) "<spoor_j_message>" as spoor_m | format if`, // highest priority applied last
+		`| format if (spoor_m:*) "<spoor_m>" as _msg`,
+		`| replace_regexp ("^([^{\\[\\r\\n][^\\r\\n]*)[\\r\\n](?s:.*)", "$1")`,
+		`| collapse_nums prettify | format if (spoor_c:*) "<spoor_c><_msg>" as _msg`,
+		`, count() if (_time:[2026-01-01T00:00:00Z, 2026-01-01T00:30:00Z)) b0, min(_time) first, any(raw) example | total_stats by (spoor_svc) sum(n) spoor_etotal, sum(b0) spoor_e0 | sort by (n desc) partition by (spoor_svc) limit 200`,
+	} {
+		if !strings.Contains(pq, want) {
+			t.Errorf("patternQuery lacks %s\n%s", want, pq)
+		}
+	}
+	if !strings.Contains(pq, `"spoor_j_msg":*) "<spoor_j_msg>" as spoor_m | format if ("spoor_j_message":*)`) {
+		t.Errorf("message must win over msg (applied last): %s", pq)
+	}
+	if got, want := e.logScope([]string{"a", "b"}, false), `"service.name":in("a","b")`; got != want {
+		t.Errorf("logScope = %s, want %s", got, want)
+	}
+	start := time.Date(2026, 1, 1, 0, 7, 0, 0, time.UTC)
+	if got, want := e.totalsQuery("*", 30*time.Minute, start), `* | copy "service.name" as spoor_svc | stats by (_time:1800000ms offset 1380000ms, spoor_svc) count() total, count() if (NOT severity_text:*) unclassified`; got != want {
+		t.Errorf("totalsQuery:\n got %s\nwant %s", got, want)
 	}
 	if got, want := e.spanStatsQuery(e.spanFilter("pay", "")), `span_id:* "resource_attr:service.name":="pay" | stats by ("name") count() n, count() if (status_code:=2) errs, quantile(0.95, "duration") p95, sum("duration") total | sort by (n desc) | limit 200`; got != want {
 		t.Errorf("spanStatsQuery:\n got %s\nwant %s", got, want)
@@ -318,5 +339,95 @@ func TestPoissonSF(t *testing.T) {
 	}
 	if got := poissonSF(1555, 4.83); got > 1e-100 {
 		t.Errorf("a real spike should be astronomically unlikely, got %v", got)
+	}
+}
+
+func TestRedactorEnvelope(t *testing.T) {
+	r := newRedactor([]config.Rule{{Regex: `sess-[a-z]+`, Replace: "<SESSION>"}})
+	env := Envelope{
+		Summary: "1 change in svc2-api during 2026-10-15T17:52:00Z/2026-10-15T18:22:00Z",
+		Findings: []Finding{{
+			Service: "svc2-api",
+			Title:   `New error log pattern: "cart ord_7f3k2m9q for sess-abcdef failed after 1500ms at 10.0.0.12"`,
+			Example: "order OLJCESPC7Z failed for a@b.com",
+		}},
+		SteadyErrors: []SteadyError{{Example: "user u_9f8e7d6c timed out"}},
+		Coverage:     map[string]string{"logs": "ok"},
+	}
+	r.envelope(&env, []string{"svc2-api"})
+	f := env.Findings[0]
+	for _, bad := range []string{"ord_7f3k2m9q", "sess-abcdef", "10.0.0.12", "OLJCESPC7Z", "a@b.com"} {
+		if strings.Contains(f.Title+f.Example, bad) {
+			t.Errorf("%q survived redaction: %q / %q", bad, f.Title, f.Example)
+		}
+	}
+	if !strings.Contains(f.Title, "1500ms") || !strings.Contains(env.Summary, "svc2-api") || !strings.Contains(env.Summary, "2026-10-15T17:52:00Z") {
+		t.Errorf("redaction too aggressive: %q / %q", f.Title, env.Summary)
+	}
+	if strings.Contains(env.SteadyErrors[0].Example, "u_9f8e7d6c") {
+		t.Errorf("steady example not redacted: %q", env.SteadyErrors[0].Example)
+	}
+}
+
+func TestFamily(t *testing.T) {
+	same := [][2]string{
+		{`Null address book for session <ID> order <N>`, `Null address book for session <N> order <ID>`},
+		{`No matching template found for "home_v2"`, `No matching template found for "category_x"`},
+		{"failed to load product <ID>: database query returned error\n\tat com.x.Y(Y.java:12)", "failed to load product <N>: database query returned error"},
+		{`request failed id=abc status=<N>`, `request failed id=xyz status=<N>`},
+	}
+	for _, p := range same {
+		if family(p[0]) != family(p[1]) {
+			t.Errorf("family(%q)=%q != family(%q)=%q", p[0], family(p[0]), p[1], family(p[1]))
+		}
+	}
+	if family("failed to load product <N>: timeout") == family("failed to load product <N>: database query returned error") {
+		t.Error("different failure reasons must be different families")
+	}
+}
+
+func TestChildTimeUnionsParallelChildren(t *testing.T) {
+	p := spanRow{start: 1000, dur: 100}
+	kids := []spanRow{{start: 1010, dur: 50}, {start: 1020, dur: 50}, {start: 1090, dur: 30}}
+	// [1010,1070] ∪ [1090,1100 clipped] = 60 + 10
+	if got := childTime(p, kids); got != 70 {
+		t.Errorf("childTime = %v, want 70", got)
+	}
+	// Without start times, durations are summed.
+	if got := childTime(spanRow{dur: 100}, []spanRow{{dur: 50}, {dur: 50}}); got != 100 {
+		t.Errorf("childTime without starts = %v, want 100", got)
+	}
+}
+
+func TestFamilyJavaPrefix(t *testing.T) {
+	a := `[ERROR] [http-nio-<N>-exec-<N>] [correlationId:<ID>-<ID>-<N>] [ProfileController.java:<N>] profile fetch failed for account <ID>`
+	b := `[ERROR] [http-nio-<N>-exec-<N>] [correlationId:<ID>-<N>] [ProfileController.java:<N>] profile fetch failed for account <N>`
+	c := `[ERROR] [http-nio-<N>-exec-<N>] [correlationId:<ID>] [ProfileController.java:<N>] address book missing`
+	if family(a) != family(b) {
+		t.Errorf("same error, different threads/IDs: %q vs %q", family(a), family(b))
+	}
+	if family(a) == family(c) {
+		t.Errorf("different errors from one class merged: %q", family(a))
+	}
+	if !strings.Contains(family(a), "profilecontroller.java") || strings.Contains(family(a), "http") || strings.HasPrefix(family(a), "error") {
+		t.Errorf("family = %q: want the class kept and the thread and level dropped", family(a))
+	}
+	if family("ERROR payment declined") != family("payment declined") {
+		t.Error("a leading level word is not part of the error")
+	}
+}
+
+// Bucket offsets: VictoriaLogs places boundaries at k*step - offset, so the
+// offset must be step minus the start's position on the epoch grid.
+func TestTotalsBucketOffset(t *testing.T) {
+	e := New(config.Default(), nil, nil, nil)
+	for start, want := range map[time.Time]string{
+		time.Date(2026, 10, 15, 12, 20, 0, 0, time.UTC): "offset 600000ms",  // :20 on a 30m grid
+		time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC):  "offset 0ms",       // already aligned
+		time.Date(2026, 10, 15, 12, 7, 0, 0, time.UTC):  "offset 1380000ms", // :07
+	} {
+		if q := e.totalsQuery("*", 30*time.Minute, start); !strings.Contains(q, want) {
+			t.Errorf("start %s: %s, want %s", start.Format("15:04"), q, want)
+		}
 	}
 }

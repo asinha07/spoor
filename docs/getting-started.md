@@ -88,26 +88,53 @@ When you are done: `make it-down` (stops the containers and deletes their data).
 export SPOOR_METRICS_URL=http://victoriametrics:8428
 export SPOOR_LOGS_URL=http://victorialogs:9428
 export SPOOR_TRACES_URL=http://victoriatraces:10428
-spoor list-services --since 30m --pretty
+# Behind Grafana instead? See "Behind Grafana" in configuration.md.
+
+spoor doctor --since 15m
 ```
 
-Check the output before going further:
+`doctor` reads a sample of each backend and reports what Spoor can and cannot see, then suggests a config. On
+logs that don't follow OpenTelemetry naming, expect something like:
 
-- **Every service you expect is listed**, with the signals you send. If a service is missing from `metrics`, your metrics don't
-  carry the `service_label` label (default `service_name`), or carry it under another name. If one is missing from `logs` or `traces`,
-  check `service_field`.
-- **`coverage` says `ok`** for each backend. `error: …` means Spoor cannot reach it or the query failed.
+```
+logs
+       5354 log lines, 7 fields
+       service field candidate container: on 100% of lines, 5 distinct values
+  WARN service field service.name is on only 0% of lines; container is on 100%
+       severity field candidate level: on 100.0% of lines, values INFO, ERROR
+       severity field candidate log.level: on 100.0% of lines, values INFO, ERROR
+  WARN 12 of those lines carry a level in their text (e.g. "... [ERROR] ..."); add a text rule to error_filter
+  FAIL the configured error filter matches 0 lines: Spoor sees no log errors (and would report no change)
 
-If your metric names differ from the OpenTelemetry defaults, write a config file. The
-[configuration guide](configuration.md) has ready-made recipes for span metrics, classic Prometheus naming,
-cAdvisor and non-OTel logs.
+Suggested config (review before use):
+
+logs:
+  service_field: container
+  severity_fields: [level, log.level]
+  error_filter: '(… OR (NOT level:* NOT log.level:* _msg:~"…"))'
+```
+
+Put the suggestions (and your metric names, if they differ from the OpenTelemetry defaults) in a config file and run
+`doctor` again until it has no `FAIL` and you understand every `WARN`. The
+[configuration guide](configuration.md) has recipes for non-OpenTelemetry logs, error messages full of IDs, span
+metrics, classic Prometheus naming, cAdvisor and Grafana.
 
 ```sh
-spoor what-changed --config spoor.yaml --since 30m --pretty
+spoor doctor --config spoor.yaml --since 15m
+spoor list-services --config spoor.yaml --since 30m --pretty
+spoor what-changed --config spoor.yaml --since 30m --pretty --stats
 ```
 
-On a healthy system you should see few or no findings, maybe some `steady_errors`. If you see many findings on a
-quiet day, see [troubleshooting.md](troubleshooting.md#too-many-findings).
+Check the output:
+
+- **Every service you expect is listed**, with the signals you send.
+- **`coverage` says `ok`** for each backend, and `coverage.logs_lines` shows a believable number of error lines.
+  Any other state means Spoor is partly blind there; the summary says so too.
+- **On a healthy system** you should see few or no findings, maybe some `steady_errors`. If you see many findings on
+  a quiet day, see [troubleshooting.md](troubleshooting.md#too-many-findings).
+
+Before relying on it, replay windows you already understand: past incidents and quiet periods. See
+[Replay your own incidents](benchmark.md#replay-your-own-incidents).
 
 ## 4. Connect an AI agent
 

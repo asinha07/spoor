@@ -29,6 +29,7 @@ const (
 	KindResourceUp        = "resource_up"
 	KindNewLogPattern     = "new_log_pattern"
 	KindSpikingLogPattern = "spiking_log_pattern"
+	KindErrorVolumeUp     = "error_volume_up"
 	KindSpanErrorsUp      = "span_errors_up"
 	KindSpanSlower        = "span_slower"
 )
@@ -68,8 +69,12 @@ type Envelope struct {
 type SteadyError struct {
 	Service     string  `json:"service"`
 	ErrorsNow   float64 `json:"errors_now"`   // error lines in the window
-	ErrorsUsual float64 `json:"errors_usual"` // average per baseline window
-	Example     string  `json:"example"`      // the most frequent pattern
+	ErrorsUsual float64 `json:"errors_usual"` // typical (median) per baseline window
+	Change      string  `json:"change"`       // errors now vs usual, e.g. "+12%"
+	// LinesChange is the change in all log lines, when known: errors rising
+	// with traffic read differently from errors rising on flat traffic.
+	LinesChange string `json:"log_lines_change,omitempty"`
+	Example     string `json:"example"` // the most frequent pattern
 }
 
 // Request carries the common tool inputs.

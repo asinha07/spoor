@@ -41,6 +41,7 @@ func run() error {
 		for _, s := range gen.Scenarios {
 			fmt.Printf("%-26s %s\n", s.Name, s.Description)
 		}
+		fmt.Printf("%-26s %s\n", "messy-logs", "Logs only, production-shaped (mixed level fields, IDs, stack traces); use deploy/test/messy.yaml")
 		return nil
 	}
 	faultEnd := time.Now().Add(-time.Minute).UTC().Truncate(time.Minute)
@@ -50,6 +51,27 @@ func run() error {
 			return fmt.Errorf("--end: %w", err)
 		}
 		faultEnd = t
+	}
+	if *scenario == "messy-logs" {
+		// Logs only, shaped like real production logs; see gen.GenerateMessy.
+		sink := gen.HTTPSink{LogsURL: *logs}
+		ctx := context.Background()
+		truth, err := gen.GenerateMessy(ctx, sink, faultEnd, *window, *history, *seed)
+		if err != nil {
+			return err
+		}
+		sink.Flush(ctx)
+		b, _ := json.MarshalIndent(truth, "", "  ")
+		if *out != "" {
+			if err := os.MkdirAll(*out, 0o755); err != nil {
+				return err
+			}
+			if err := os.WriteFile(filepath.Join(*out, "messy-logs.truth.json"), append(b, '\n'), 0o644); err != nil {
+				return err
+			}
+		}
+		_, err = fmt.Println(string(b))
+		return err
 	}
 	var scenarios []gen.Scenario
 	if *scenario == "all" {

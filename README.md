@@ -19,7 +19,7 @@ $ spoor what-changed --since 30m
 
 ```json
 {
-  "summary": "11 change(s) in 3 services. Strongest: payment — Failures start here, in \"POST /charge\" (100% of 100 failed traces). Also: payment — Span \"POST /charge\" errors 0.2% → 43.7% (229 spans). … Errors at their usual rate (not new) in: product-catalog, recommendation, ad.",
+  "summary": "11 change(s) in 3 services. Strongest: payment — Failures start here, in \"POST /charge\" (100% of 100 failed traces). Also: payment — Span \"POST /charge\" errors 0.2% → 43.7% (229 spans). … Errors not significantly up (not new) in: product-catalog, recommendation, ad.",
   "findings": [
     {"service": "payment",  "signal": "traces",  "kind": "error_origin",    "score": 0.99, "title": "Failures start here, in \"POST /charge\" (100% of 100 failed traces)"},
     {"service": "payment",  "signal": "logs",    "kind": "new_log_pattern", "score": 0.94, "title": "New error log pattern: \"charge failed: card processor returned <N> for order <N>\""},
@@ -42,16 +42,20 @@ an error that was always there.
 
 Spoor does that work in plain, deterministic Go and hands the agent the conclusion's evidence:
 
-- **Cross-signal:** request rate, error rate, latency, CPU, memory and consumer lag; new and spiking error-log
-  patterns; per-span errors and latency, all for the same window against the same baseline.
+- **Cross-signal:** request rate, error rate, latency, CPU, memory and consumer lag; new and spiking errors and
+  error volume from logs; per-span errors and latency, all for the same window against the same baseline.
+- **Built for real logs:** messages that differ only by IDs, values, stack traces or log prefixes count as one error;
+  JSON errors are read by their message and code fields; services
+  can use different level fields or put the level in the text; `spoor doctor` finds your fields and writes the config.
 - **Cause vs. echo:** trace trees show where failures start and where latency is added. Callers that merely
   suffer are demoted and labelled `— originates in payment`.
 - **Steady errors called out:** errors that were already there are listed as `steady_errors`, "not a new problem",
   so agents stop blaming them.
 - **Bounded output:** every tool takes `budget_tokens` (default 800).
-- **Honest about gaps:** `coverage` says when a backend failed or had no data, or the baseline was empty. "No
-  change" never stands in for "no data".
-- **No LLM inside, read-only:** same input, same output; only query endpoints are ever called.
+- **Honest about gaps:** `coverage` says when a backend failed or had no data, the baseline was empty, the error
+  filter matched nothing, or lines lack a service or level field. "No change" never stands in for "can't see".
+- **No LLM inside, read-only, redacted:** same input, same output; only query endpoints are ever called; every text
+  field is scrubbed of emails, tokens, IPs and generated IDs before it leaves.
 
 ### Measured
 
@@ -67,8 +71,14 @@ On Claude Haiku, 60 isolated sessions:
 | Median time | 55 s | **23 s** |
 | Total cost | $0.60 | **$0.19** (−68%) |
 
-Synthetic incidents and one small model, so treat it as a first data point. Method, per-scenario results and
-caveats: [docs/benchmark.md](docs/benchmark.md).
+Synthetic incidents and one small model, so treat it as a first data point.
+
+**On real production logs** (about 25 services, mixed formats, read-only replay): the digest was 99.8% smaller than the
+raw evidence it replaces, with zero candidates against four from v0.1.1, and its baseline counts matched independent
+queries exactly. It was not faster than four hand-written queries (28 s vs 26 s), and accuracy on real incidents is
+not yet measured.
+
+Method, per-scenario results, the production replay and caveats: [docs/benchmark.md](docs/benchmark.md).
 
 ## Quickstart
 
@@ -97,7 +107,8 @@ claude mcp add spoor \
 Run it from the `spoor` directory (or add `-s user` to register it everywhere), then ask Claude: *"Something is
 failing in the shop. What changed, and where did it start?"*
 
-Other clients, your own backends and config: **[Getting started](docs/getting-started.md)**.
+On your own backends, start with `spoor doctor --since 15m`: it checks what Spoor can see and suggests config.
+Other clients, Grafana-only access and the rest: **[Getting started](docs/getting-started.md)**.
 
 ## Tools
 
@@ -161,10 +172,13 @@ finding "ad: CPU up 0.07 → 3.97 cores" (192 tokens). Reproduce it: [`deploy/de
 
 Early (pre-1.0). Tool output fields may still change between minor versions; see the [changelog](CHANGELOG.md).
 
-- VictoriaMetrics stack only for now. Prometheus, Loki and Tempo adapters are next.
+- VictoriaMetrics stack only for now (directly or through Grafana's datasource proxy). Prometheus, Loki and Tempo
+  adapters are next.
 - Cause/echo attribution needs traces; without them Spoor still ranks metric and log changes.
 - Attribution reads at most 50,000 span rows per read; on very busy systems a trace can be cut.
-- The benchmark uses synthetic incidents written by the author and one model; treat it as a first data point.
+- The benchmark uses synthetic incidents written by the author and one model; treat it as a first data point, and
+  replay your own past incidents with [`bench/replay.py`](bench/replay.py) before relying on it.
+- Metrics and traces are queried per service; on large estates pass `service` when you know it.
 
 More in [how-it-works.md](docs/how-it-works.md#known-limitations).
 

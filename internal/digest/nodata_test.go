@@ -274,7 +274,7 @@ func TestSteadyErrorsAggregatesFragments(t *testing.T) {
 		base[p] = patternStat{n: 6}
 	}
 	cur["failed to load product ID0: database query returned error"] = patternStat{n: 3}
-	st := steadyErrors("product-catalog", cur, base, 6, 3, false)
+	st := steadyFromPatterns("product-catalog", cur, base, 6, 3)
 	if st == nil {
 		t.Fatal("ten small patterns at their usual rate should add up to a steady entry")
 	}
@@ -283,18 +283,15 @@ func TestSteadyErrorsAggregatesFragments(t *testing.T) {
 	}
 }
 
-func TestSteadyErrorsRejectsRisingOrFlaggedServices(t *testing.T) {
+func TestSteadyFromPatternsRejectsRising(t *testing.T) {
 	base := map[string]patternStat{"x": {n: 60}} // 10 per window over 6 windows
-	if st := steadyErrors("svc", map[string]patternStat{"x": {n: 60}}, base, 6, 3, false); st != nil {
+	if st := steadyFromPatterns("svc", map[string]patternStat{"x": {n: 60}}, base, 6, 3); st != nil {
 		t.Errorf("six times the usual rate is not steady: %+v", st)
 	}
-	if st := steadyErrors("svc", map[string]patternStat{"x": {n: 11}}, base, 6, 3, true); st != nil {
-		t.Error("a service with findings must not also be listed as steady")
-	}
-	if st := steadyErrors("svc", map[string]patternStat{"x": {n: 2}}, base, 6, 3, false); st != nil {
+	if st := steadyFromPatterns("svc", map[string]patternStat{"x": {n: 2}}, base, 6, 3); st != nil {
 		t.Error("below the minimum count nothing is reported")
 	}
-	if st := steadyErrors("svc", map[string]patternStat{"x": {n: 5}}, map[string]patternStat{}, 6, 3, false); st != nil {
+	if st := steadyFromPatterns("svc", map[string]patternStat{"x": {n: 5}}, map[string]patternStat{}, 6, 3); st != nil {
 		t.Error("with no baseline errors nothing can be called steady")
 	}
 }
@@ -322,11 +319,11 @@ func TestFitDropsSteadyBeforeFindings(t *testing.T) {
 }
 
 func TestSteadySentence(t *testing.T) {
-	st := []SteadyError{{Service: "product-catalog", ErrorsNow: 8, ErrorsUsual: 10.2, Example: "db error"}}
-	if s := steadySentence(st, true); !strings.Contains(s, "not a new problem") || !strings.Contains(s, "10.2 per window") {
+	st := []SteadyError{{Service: "product-catalog", ErrorsNow: 8, ErrorsUsual: 10.2, Change: "-22%", LinesChange: "+3%", Example: "db error"}}
+	if s := steadySentence(st, true); !strings.Contains(s, "not a new problem") || !strings.Contains(s, "10.2 usual, -22%, all log lines +3%") {
 		t.Errorf("no-findings sentence = %q", s)
 	}
-	if s := steadySentence(st, false); s != " Errors at their usual rate (not new) in: product-catalog." {
+	if s := steadySentence(st, false); s != " Errors not significantly up (not new) in: product-catalog." {
 		t.Errorf("with-findings sentence = %q", s)
 	}
 	if steadySentence(nil, true) != "" {

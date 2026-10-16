@@ -9,7 +9,6 @@ import (
 
 	"github.com/asinha07/spoor/internal/backend"
 	"github.com/asinha07/spoor/internal/config"
-	"github.com/asinha07/spoor/internal/links"
 	"github.com/asinha07/spoor/internal/window"
 )
 
@@ -127,11 +126,16 @@ func (e *Engine) scoreMetrics(ctx context.Context, svc string, spec window.Spec)
 		}
 		f.onset = e.metricOnset(ctx, ms, svc, spec, med, cur)
 		f.Onset = fmtTime(f.onset)
-		f.EvidenceLink = links.Metrics(e.uiBase(e.cfg.Metrics.Backend), q, spec.SubWindows[0].Start, spec.Window.End)
+		f.EvidenceLink = e.metricsLink(q, spec.SubWindows[0].Start, spec.Window.End)
 		out = append(out, f)
 	}
 	if ok == 0 && lastErr != nil {
 		return nil, lastErr
+	}
+	if lastErr != nil {
+		// Some queries answered and some failed: keep the findings, but say
+		// that the picture is incomplete.
+		return out, partialError{svc: svc, err: lastErr}
 	}
 	return out, nil
 }

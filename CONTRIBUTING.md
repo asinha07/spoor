@@ -33,7 +33,11 @@ make it-reset && make it   # integration tests against real backends (Docker)
 - **Golden files change on purpose.** If your change alters any tool output, refresh with
   `go test ./internal/digest -run TestGolden -update` and explain the difference in the PR.
 - **Scoring changes need evidence.** Re-run `make it` and keep the ground-truth service ranked first in
-  every fault scenario, with no findings in the control scenario.
+  every fault scenario, with no findings in the control scenario, and `TestMessyLogs` passing: the six scenarios
+  are tidy OpenTelemetry data, the messy-logs scenario is shaped like real production logs (mixed level fields,
+  levels only in text, IDs in messages, stack traces).
+- **Generic, not one company's logs.** Defaults and heuristics must work for any stack; anything specific to one
+  organisation belongs in its config file, not in code or docs.
 - **Query changes need a re-record.** If you change a query, the golden tests will report that the call
   was not recorded. Run `make record` to capture fresh fixtures.
 
