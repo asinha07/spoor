@@ -1,8 +1,18 @@
 {
-  "summary": "11 change(s) in 3 services. Strongest: payment — Failures start here, in \"POST /charge\" (100% of 89 failed traces). Also: payment — Span \"POST /charge\" errors 0.1% → 42.2% (211 spans). Also: payment — New error log pattern: \"charge failed: card processor returned \u003cN\u003e for order \u003cN\u003e\". Earliest onset 2026-10-16T13:59:00Z. Errors not significantly up (not new) in: product-catalog, recommendation, ad.",
+  "summary": "12 change(s) in 3 services. Strongest: payment — Error rate up: 0.1% → 39.0%. Also: payment — Failures start here, in \"POST /charge\" (100% of 89 failed traces). Also: payment — Span \"POST /charge\" errors 0.1% → 42.2% (211 spans). Earliest onset 2026-10-16T13:59:00Z. Errors not significantly up (not new) in: product-catalog, recommendation, ad.",
   "window": "2026-10-16T13:59:00Z/2026-10-16T14:29:00Z",
   "baseline": "2026-10-16T10:59:00Z/2026-10-16T13:59:00Z (previous, 6 windows)",
   "findings": [
+    {
+      "service": "payment",
+      "signal": "metrics",
+      "kind": "error_rate_up",
+      "score": 0.99,
+      "title": "Error rate up: 0.1% → 39.0%",
+      "before": "0.1%",
+      "after": "39.0%",
+      "onset": "2026-10-16T13:59:00Z"
+    },
     {
       "service": "payment",
       "signal": "traces",
@@ -32,16 +42,6 @@
       "onset": "2026-10-16T13:59:00Z"
     },
     {
-      "service": "payment",
-      "signal": "metrics",
-      "kind": "error_rate_up",
-      "score": 0.92,
-      "title": "Error rate up: 0.1% → 39.0%",
-      "before": "0.1%",
-      "after": "39.0%",
-      "onset": "2026-10-16T13:59:00Z"
-    },
-    {
       "service": "checkout",
       "signal": "logs",
       "kind": "spiking_log_pattern",
@@ -49,6 +49,16 @@
       "title": "Error log pattern spiking: \"call to payment.Charge failed with status \u003cN\u003e\" — originates in payment",
       "before": "2.83 per window",
       "after": "958 in window",
+      "onset": "2026-10-16T13:59:00Z"
+    },
+    {
+      "service": "checkout",
+      "signal": "metrics",
+      "kind": "error_rate_up",
+      "score": 0.74,
+      "title": "Error rate up: 0.1% → 39.1% — originates in payment",
+      "before": "0.1%",
+      "after": "39.1%",
       "onset": "2026-10-16T13:59:00Z"
     },
     {

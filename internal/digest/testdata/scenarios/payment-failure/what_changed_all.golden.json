@@ -1,8 +1,19 @@
 {
-  "summary": "11 change(s) in 3 services. Strongest: payment — Failures start here, in \"POST /charge\" (100% of 89 failed traces). Also: payment — Span \"POST /charge\" errors 0.1% → 42.2% (211 spans). Also: payment — New error log pattern: \"charge failed: card processor returned \u003cN\u003e for order \u003cN\u003e\". Earliest onset 2026-10-16T13:59:00Z. Errors not significantly up (not new) in: product-catalog, recommendation, ad.",
+  "summary": "12 change(s) in 3 services. Strongest: payment — Error rate up: 0.1% → 39.0%. Also: payment — Failures start here, in \"POST /charge\" (100% of 89 failed traces). Also: payment — Span \"POST /charge\" errors 0.1% → 42.2% (211 spans). Earliest onset 2026-10-16T13:59:00Z. Errors not significantly up (not new) in: product-catalog, recommendation, ad.",
   "window": "2026-10-16T13:59:00Z/2026-10-16T14:29:00Z",
   "baseline": "2026-10-16T10:59:00Z/2026-10-16T13:59:00Z (previous, 6 windows)",
   "findings": [
+    {
+      "service": "payment",
+      "signal": "metrics",
+      "kind": "error_rate_up",
+      "score": 0.99,
+      "title": "Error rate up: 0.1% → 39.0%",
+      "before": "0.1%",
+      "after": "39.0%",
+      "onset": "2026-10-16T13:59:00Z",
+      "evidence_link": "http://localhost:8428/vmui/#/?g0.end_input=2026-10-16T14%3A29%3A00\u0026g0.expr=%28sum%28rate%28http_server_request_duration_seconds_count%7Bservice_name%3D%22payment%22%2Chttp_response_status_code%3D~%225..%22%7D%5B30m%5D%29%29+or+vector%280%29%29+%2F+sum%28rate%28http_server_request_duration_seconds_count%7Bservice_name%3D%22payment%22%7D%5B30m%5D%29%29\u0026g0.range_input=210m\u0026g0.relative_time=none"
+    },
     {
       "service": "payment",
       "signal": "traces",
@@ -36,17 +47,6 @@
       "evidence_link": "http://localhost:9428/select/vmui/#/?g0.end_input=2026-10-16T14%3A29%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=%22service.name%22%3A%3D%22payment%22+severity_text%3A~%22%28%3Fi%29%5E%28err%7Cerror%7Cfatal%7Ccrit%7Ccritical%7Calert%7Cemerg%7Cemergency%7Cpanic%7Csevere%29%24%22"
     },
     {
-      "service": "payment",
-      "signal": "metrics",
-      "kind": "error_rate_up",
-      "score": 0.92,
-      "title": "Error rate up: 0.1% → 39.0%",
-      "before": "0.1%",
-      "after": "39.0%",
-      "onset": "2026-10-16T13:59:00Z",
-      "evidence_link": "http://localhost:8428/vmui/#/?g0.end_input=2026-10-16T14%3A29%3A00\u0026g0.expr=%28sum%28rate%28http_server_request_duration_seconds_count%7Bservice_name%3D%22payment%22%2Chttp_response_status_code%3D~%225..%22%7D%5B30m%5D%29%29+or+vector%280%29%29+%2F+sum%28rate%28http_server_request_duration_seconds_count%7Bservice_name%3D%22payment%22%7D%5B30m%5D%29%29\u0026g0.range_input=210m\u0026g0.relative_time=none"
-    },
-    {
       "service": "checkout",
       "signal": "logs",
       "kind": "spiking_log_pattern",
@@ -57,6 +57,17 @@
       "onset": "2026-10-16T13:59:00Z",
       "example": "call to payment.Charge failed with status 500",
       "evidence_link": "http://localhost:9428/select/vmui/#/?g0.end_input=2026-10-16T14%3A29%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=%22service.name%22%3A%3D%22checkout%22+severity_text%3A~%22%28%3Fi%29%5E%28err%7Cerror%7Cfatal%7Ccrit%7Ccritical%7Calert%7Cemerg%7Cemergency%7Cpanic%7Csevere%29%24%22"
+    },
+    {
+      "service": "checkout",
+      "signal": "metrics",
+      "kind": "error_rate_up",
+      "score": 0.74,
+      "title": "Error rate up: 0.1% → 39.1% — originates in payment",
+      "before": "0.1%",
+      "after": "39.1%",
+      "onset": "2026-10-16T13:59:00Z",
+      "evidence_link": "http://localhost:8428/vmui/#/?g0.end_input=2026-10-16T14%3A29%3A00\u0026g0.expr=%28sum%28rate%28http_server_request_duration_seconds_count%7Bservice_name%3D%22checkout%22%2Chttp_response_status_code%3D~%225..%22%7D%5B30m%5D%29%29+or+vector%280%29%29+%2F+sum%28rate%28http_server_request_duration_seconds_count%7Bservice_name%3D%22checkout%22%7D%5B30m%5D%29%29\u0026g0.range_input=210m\u0026g0.relative_time=none"
     },
     {
       "service": "frontend",
@@ -119,15 +130,14 @@
       "evidence_link": "http://localhost:10428/select/vmui/#/?g0.end_input=2026-10-16T14%3A29%3A00\u0026g0.range_input=210m\u0026g0.relative_time=none\u0026query=span_id%3A%2A+%22resource_attr%3Aservice.name%22%3A%3D%22frontend%22"
     },
     {
-      "service": "checkout",
+      "service": "frontend",
       "signal": "metrics",
       "kind": "error_rate_up",
-      "score": 0.66,
-      "title": "Error rate up: 0.1% → 39.1% — originates in payment",
+      "score": 0.64,
+      "title": "Error rate up: 0.1% → 3.1% — originates in payment",
       "before": "0.1%",
-      "after": "39.1%",
-      "onset": "2026-10-16T13:59:00Z",
-      "evidence_link": "http://localhost:8428/vmui/#/?g0.end_input=2026-10-16T14%3A29%3A00\u0026g0.expr=%28sum%28rate%28http_server_request_duration_seconds_count%7Bservice_name%3D%22checkout%22%2Chttp_response_status_code%3D~%225..%22%7D%5B30m%5D%29%29+or+vector%280%29%29+%2F+sum%28rate%28http_server_request_duration_seconds_count%7Bservice_name%3D%22checkout%22%7D%5B30m%5D%29%29\u0026g0.range_input=210m\u0026g0.relative_time=none"
+      "after": "3.1%",
+      "evidence_link": "http://localhost:8428/vmui/#/?g0.end_input=2026-10-16T14%3A29%3A00\u0026g0.expr=%28sum%28rate%28http_server_request_duration_seconds_count%7Bservice_name%3D%22frontend%22%2Chttp_response_status_code%3D~%225..%22%7D%5B30m%5D%29%29+or+vector%280%29%29+%2F+sum%28rate%28http_server_request_duration_seconds_count%7Bservice_name%3D%22frontend%22%7D%5B30m%5D%29%29\u0026g0.range_input=210m\u0026g0.relative_time=none"
     }
   ],
   "steady_errors": [

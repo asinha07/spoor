@@ -56,6 +56,7 @@ func (e *Engine) scoreMetrics(ctx context.Context, svc string, spec window.Spec)
 	var lastErr error
 	ok := 0
 	loadOK := true
+	reqNow := -1.0 // request rate in the window, once known
 	for i, ms := range e.metricSpecs() {
 		if ms.needsLoad && !loadOK {
 			continue
@@ -84,11 +85,30 @@ func (e *Engine) scoreMetrics(ctx context.Context, svc string, spec window.Spec)
 			if math.Max(cur, median(hist)) < e.cfg.Scoring.MinRequestRate {
 				loadOK = false
 			}
+			reqNow = cur
 		}
 		if !has || len(hist) < 2 {
 			continue
 		}
-		z, med := robustZ(cur, hist, ms.relFloor, ms.absFloor)
+		absFloor := ms.absFloor
+		var requests float64
+		if ms.kindUp == KindErrorRateUp && reqNow > 0 {
+			// The noise in an error rate depends on how many requests it
+			// is measured over: a fixed floor of two percentage points hides
+			// 0.3% -> 5% on twenty thousand requests. Use the binomial noise
+			// of the baseline rate at this traffic instead (at least 0.1 pp).
+			requests = reqNow * w.Seconds()
+			if requests >= 1 {
+				p := median(hist)
+				absFloor = math.Max(0.001, math.Sqrt(math.Max(p*(1-p), 0)/requests))
+			}
+		}
+		z, med := robustZ(cur, hist, ms.relFloor, absFloor)
+		if requests >= 1 && z > 0 && poissonSF(cur*requests, math.Max(med*requests, 1)) >= spikeMaxP {
+			// Too few errors to be more than chance (five errors where one
+			// is usual).
+			z = 0
+		}
 		kind := ""
 		switch {
 		case z > 0 && ms.direction >= 0:
