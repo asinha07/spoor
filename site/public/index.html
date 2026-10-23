@@ -219,7 +219,7 @@ footer { border-top: 1px solid var(--line); padding: 48px 0 64px; color: var(--s
         <a class="btn btn-primary" href="#install">Install Spoor</a>
         <a class="btn btn-quiet" href="https://github.com/asinha07/spoor">View on GitHub</a>
       </div>
-      <p class="meta">Version 0.3.0. Apache-2.0. Read-only, no LLM inside, same input gives the same answer.</p>
+      <p class="meta">Version 0.3.1. Apache-2.0. Read-only, no LLM inside, same input gives the same answer.</p>
     </div>
 
     <figure class="trail" id="trail" aria-label="Three services fail at once. Spoor follows the trail back from frontend and checkout to payment, where the failure started." style="margin:0">
@@ -324,7 +324,7 @@ footer { border-top: 1px solid var(--line); padding: 48px 0 64px; color: var(--s
             <div class="panel" role="tabpanel">
               <div class="code"><pre><code>OS=$(uname -s | tr A-Z a-z)
 ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
-curl -fsSL "https://github.com/asinha07/spoor/releases/download/v0.3.0/spoor_0.3.0_${OS}_${ARCH}.tar.gz" | tar -xz spoor
+curl -fsSL "https://github.com/asinha07/spoor/releases/download/v0.3.1/spoor_0.3.1_${OS}_${ARCH}.tar.gz" | tar -xz spoor
 sudo mv spoor /usr/local/bin/
 spoor version</code></pre></div>
             </div>
@@ -338,7 +338,7 @@ spoor version</code></pre></div>
   -e SPOOR_METRICS_URL=http://host.docker.internal:8428 \
   -e SPOOR_LOGS_URL=http://host.docker.internal:9428 \
   -e SPOOR_TRACES_URL=http://host.docker.internal:10428 \
-  ghcr.io/asinha07/spoor:0.3.0</code></pre></div>
+  ghcr.io/asinha07/spoor:0.3.1</code></pre></div>
             </div>
             <div class="panel" role="tabpanel" hidden>
               <div class="code"><pre><code>git clone https://github.com/asinha07/spoor && cd spoor
@@ -346,7 +346,7 @@ make build          <span class="c"># ./bin/spoor</span>
 ./bin/spoor version</code></pre></div>
             </div>
             <div class="panel" role="tabpanel" hidden>
-              <p>Download <code>spoor_0.3.0_windows_amd64.zip</code> (or <code>arm64</code>) from the <a href="https://github.com/asinha07/spoor/releases/latest">releases page</a>, unzip it and put <code>spoor.exe</code> on your <code>PATH</code>.</p>
+              <p>Download <code>spoor_0.3.1_windows_amd64.zip</code> (or <code>arm64</code>) from the <a href="https://github.com/asinha07/spoor/releases/latest">releases page</a>, unzip it and put <code>spoor.exe</code> on your <code>PATH</code>.</p>
             </div>
           </div>
         </div>

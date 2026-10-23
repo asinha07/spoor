@@ -8,11 +8,11 @@
     "url": "https://github.com/asinha07/spoor",
     "source": "github"
   },
-  "version": "0.3.0",
+  "version": "0.3.1",
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/asinha07/spoor:0.3.0",
+      "identifier": "ghcr.io/asinha07/spoor:0.3.1",
       "transport": {
         "type": "stdio"
       },

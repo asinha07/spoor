@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.1 (2026-10-23)
+
+### Changed
+- The error-rate threshold now scales with traffic. Before, an error rate had to rise by at least 2 percentage
+  points to count, which hid real failures on busy services (for example 0.3% to 5% across 20,000 requests). The
+  minimum rise is now the statistical noise expected for the window's request count at the baseline rate, and a
+  Poisson tail check drops rises that chance explains. On a replay of labelled past incidents from a production New
+  Relic account, every incident's service was found (three had been missed), at the cost of one more quiet window
+  with a finding.
+
 ## 0.3.0 (2026-10-23)
 
 New backends. Each signal picks one with `type:`, and they can be mixed. See [docs/backends.md](docs/backends.md).
