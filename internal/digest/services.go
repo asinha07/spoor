@@ -4,7 +4,6 @@ import (
 	"context"
 	"sort"
 
-	"github.com/asinha07/spoor/internal/backend"
 	"github.com/asinha07/spoor/internal/window"
 )
 
@@ -59,26 +58,15 @@ func (e *Engine) listIn(ctx context.Context, r window.Range) ServiceList {
 	} else {
 		cov[SignalMetrics] = "not configured"
 	}
-	fieldValues := func(src LogsSource, field string) ([]string, error) {
-		rows, err := src.Query(ctx, "* | field_values "+backend.Quote(field), r.Start, r.End, 0)
-		if err != nil {
-			return nil, err
-		}
-		out := make([]string, 0, len(rows))
-		for _, row := range rows {
-			out = append(out, row[field])
-		}
-		return out, nil
-	}
 	if e.logs != nil {
-		names, err := fieldValues(e.logs, e.cfg.Logs.ServiceField)
+		names, err := e.logs.Services(ctx, r)
 		note(SignalLogs, err)
 		add(SignalLogs, names)
 	} else {
 		cov[SignalLogs] = "not configured"
 	}
 	if e.traces != nil {
-		names, err := fieldValues(e.traces, e.cfg.Traces.ServiceField)
+		names, err := e.traces.Services(ctx, r)
 		note(SignalTraces, err)
 		add(SignalTraces, names)
 	} else {

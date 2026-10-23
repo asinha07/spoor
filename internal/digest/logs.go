@@ -179,8 +179,8 @@ type errorCounts struct {
 	buckets []float64
 }
 
-func (e *Engine) patternsIn(ctx context.Context, scope string, r window.Range, buckets []window.Range) (servicePatterns, map[string]errorCounts, error) {
-	rows, err := e.logs.Query(ctx, e.patternQuery(scope, buckets), r.Start, r.End, 0)
+func (e *Engine) patternsIn(ctx context.Context, src LogsSource, scope string, r window.Range, buckets []window.Range) (servicePatterns, map[string]errorCounts, error) {
+	rows, err := src.Query(ctx, e.patternQuery(scope, buckets), r.Start, r.End, 0)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -232,8 +232,8 @@ func (e *Engine) totalsQuery(scope string, step time.Duration, start time.Time) 
 
 // totals runs totalsQuery over r split into n buckets of step (n=1, step=0:
 // the whole range) and returns per-service counts per bucket.
-func (e *Engine) totals(ctx context.Context, scope string, r window.Range, step time.Duration, n int) (map[string][]volume, error) {
-	rows, err := e.logs.Query(ctx, e.totalsQuery(scope, step, r.Start), r.Start, r.End, 0)
+func (e *Engine) totals(ctx context.Context, src LogsSource, scope string, r window.Range, step time.Duration, n int) (map[string][]volume, error) {
+	rows, err := src.Query(ctx, e.totalsQuery(scope, step, r.Start), r.Start, r.End, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +260,7 @@ func (e *Engine) totals(ctx context.Context, scope string, r window.Range, step 
 // sub-window: one bucketed query when the baseline is contiguous with the
 // window (baseline=previous), two otherwise. Error counts come from the
 // pattern queries.
-func (e *Engine) lineTotals(ctx context.Context, scope string, spec window.Spec, run func(func() error)) (wait func() (map[string]volume, map[string][]volume, error)) {
+func (e *Engine) lineTotals(ctx context.Context, services []string, all bool, spec window.Spec, run func(func() error)) (wait func() (map[string]volume, map[string][]volume, error)) {
 	subs := spec.SubWindows
 	k := len(subs)
 	step := subs[0].End.Sub(subs[0].Start)
@@ -269,15 +269,15 @@ func (e *Engine) lineTotals(ctx context.Context, scope string, spec window.Spec,
 	contiguous := subs[k-1].End.Equal(spec.Window.Start) && spec.Window.Duration() == step
 	if contiguous {
 		run(func() error {
-			full, errFull = e.totals(ctx, scope, window.Range{Start: subs[0].Start, End: spec.Window.End}, step, k+1)
+			full, errFull = e.logs.Totals(ctx, services, all, window.Range{Start: subs[0].Start, End: spec.Window.End}, step, k+1)
 			return nil
 		})
 	} else {
 		run(func() error {
-			base, errBase = e.totals(ctx, scope, window.Range{Start: subs[0].Start, End: subs[k-1].End}, step, k)
+			base, errBase = e.logs.Totals(ctx, services, all, window.Range{Start: subs[0].Start, End: subs[k-1].End}, step, k)
 			return nil
 		})
-		run(func() error { win, errWin = e.totals(ctx, scope, spec.Window, 0, 1); return nil })
+		run(func() error { win, errWin = e.logs.Totals(ctx, services, all, spec.Window, 0, 1); return nil })
 	}
 	return func() (map[string]volume, map[string][]volume, error) {
 		for _, err := range []error{errFull, errBase, errWin} {
@@ -439,7 +439,6 @@ func (e *Engine) scoreLogs(ctx context.Context, services []string, all bool, spe
 	for _, s := range services {
 		inScope[s] = true
 	}
-	patScope := e.logScope(services, false)
 	hist := window.Range{Start: spec.SubWindows[0].Start, End: spec.Baseline.End}
 	k := float64(len(spec.SubWindows))
 	minCount := float64(e.cfg.Scoring.MinPatternCount)
@@ -457,18 +456,22 @@ func (e *Engine) scoreLogs(ctx context.Context, services []string, all bool, spe
 			_ = f()
 		}()
 	}
-	var cur, base servicePatterns
-	var curErrs, baseErrs map[string]errorCounts
+	var curRes, baseRes patternResult
 	var curErr, baseErr error
-	run(func() error { cur, curErrs, curErr = e.patternsIn(ctx, patScope, spec.Window, nil); return nil })
-	run(func() error { base, baseErrs, baseErr = e.patternsIn(ctx, patScope, hist, spec.SubWindows); return nil })
-	totalsDone := e.lineTotals(ctx, e.logScope(services, all), spec, run)
+	run(func() error { curRes, curErr = e.logs.Patterns(ctx, services, spec.Window, nil); return nil })
+	run(func() error { baseRes, baseErr = e.logs.Patterns(ctx, services, hist, spec.SubWindows); return nil })
+	totalsDone := e.lineTotals(ctx, services, all, spec, run)
 	wg.Wait()
 	if curErr != nil {
 		return res, curErr
 	}
 	if baseErr != nil {
 		return res, baseErr
+	}
+	cur, curErrs := curRes.patterns, curRes.counts
+	base, baseErrs := baseRes.patterns, baseRes.counts
+	if n := firstNonEmpty(curRes.note, baseRes.note); n != "" {
+		res.notes["logs_sample"] = n
 	}
 	// Line totals are context: if they fail, patterns still answer.
 	winVol, baseVol, totalsErr := totalsDone()
@@ -550,26 +553,16 @@ func (e *Engine) scoreLogs(ctx context.Context, services []string, all bool, spe
 			verify = verify[:maxVerify]
 		}
 		verified = len(verify)
-		conds := make([]string, 0, len(verify))
+		checks := make([]familyCheck, len(verify))
 		for i, c := range verify {
-			cond := backend.Eq("spoor_svc", c.svc)
-			for _, w := range c.words {
-				cond += " i(" + strconv.Quote(w) + ")"
-			}
-			conds = append(conds, fmt.Sprintf("count() if (%s) c%d", cond, i))
+			checks[i] = familyCheck{svc: c.svc, words: c.words}
 		}
-		q := patScope + " " + e.cfg.Logs.EffectiveErrorFilter() + " | copy " + backend.Quote(e.cfg.Logs.ServiceField) +
-			" as spoor_svc | stats " + strings.Join(conds, ", ")
-		rows, err := e.logs.Query(ctx, q, hist.Start, hist.End, 0)
+		counts, err := e.logs.CountFamilies(ctx, services, hist, checks)
 		if err != nil {
 			return res, err
 		}
-		var counts Row
-		if len(rows) > 0 {
-			counts = Row(rows[0])
-		}
 		for i, c := range verify {
-			seen := counts.Float(fmt.Sprintf("c%d", i))
+			seen := counts[i]
 			var fd Finding
 			var ok bool
 			if seen > 0 && len(c.words) > 0 {
@@ -674,7 +667,7 @@ func (e *Engine) logFinding(svc, kind string, score float64, f *familyStat, spec
 		Score:        round2(score),
 		After:        fmt.Sprintf("%.0f in window", f.n),
 		Example:      Redact(f.example, maxExampleLen),
-		EvidenceLink: e.logsLink(e.logFilter(svc), hist.Start, spec.Window.End),
+		EvidenceLink: e.logsLink(e.logs.Evidence(svc), hist.Start, spec.Window.End),
 	}
 	fd.onset = f.first
 	fd.Onset = fmtTime(f.first)
@@ -731,7 +724,7 @@ func (e *Engine) volumeVerdict(svc string, now volume, hist []volume, pats map[s
 			return Finding{
 				Service: svc, Signal: SignalLogs, Kind: KindErrorVolumeUp, Score: round2(score),
 				Title: title, Before: fmtCount(usual) + " per window", After: fmtCount(now.errors) + " in window",
-				EvidenceLink: e.logsLink(e.logFilter(svc), hist.Start, spec.Window.End),
+				EvidenceLink: e.logsLink(e.logs.Evidence(svc), hist.Start, spec.Window.End),
 			}, nil, true
 		}
 	}
@@ -838,11 +831,11 @@ func (e *Engine) logCoverage(res *logResult, services []string, all bool, win ma
 // noServiceField explains an empty scan: lines exist, but none carries the
 // service field, so Spoor would otherwise just say "no data".
 func (e *Engine) noServiceField(ctx context.Context, res *logResult, r window.Range) {
-	rows, err := e.logs.Query(ctx, "* | stats count() n", r.Start, r.End, 0)
-	if err != nil || len(rows) == 0 {
+	n, err := e.logs.CountLines(ctx, r)
+	if err != nil {
 		return
 	}
-	if n := rows[0].Float("n"); n > 0 {
+	if n > 0 {
 		f := e.cfg.Logs.ServiceField
 		res.state = fmt.Sprintf("%s log lines in window, but none has a %s field; set logs.service_field (run spoor doctor)", fmtCount(n), f)
 		res.summary = fmt.Sprintf(" Logs: %s lines arrived, but none has the %s field, so Spoor cannot attribute them to services; this is not evidence of health (run spoor doctor).", fmtCount(n), f)
@@ -851,3 +844,12 @@ func (e *Engine) noServiceField(ctx context.Context, res *logResult, r window.Ra
 
 // Row aliases backend.Row for local use.
 type Row = backend.Row
+
+func firstNonEmpty(s ...string) string {
+	for _, v := range s {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}

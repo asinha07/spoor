@@ -82,17 +82,31 @@ func (e *Engine) Doctor(ctx context.Context, since, until string) (DoctorReport,
 	}
 
 	// Logs.
-	if e.logs == nil {
+	switch d, ok := e.logs.(storeDoctor); {
+	case e.logs == nil:
 		add(SignalLogs, "info", "not configured")
-	} else if err := e.doctorLogs(ctx, r, add, &suggest); err != nil {
-		add(SignalLogs, "fail", "%s", truncate(err.Error(), 200))
+	case e.rawLogs != nil:
+		if err := e.doctorLogs(ctx, r, add, &suggest); err != nil {
+			add(SignalLogs, "fail", "%s", truncate(err.Error(), 200))
+		}
+	case ok:
+		d.doctor(ctx, e, r, func(status, msg string, args ...any) { add(SignalLogs, status, msg, args...) })
+	default:
+		e.doctorServices(ctx, SignalLogs, e.logs.Services, r, add)
 	}
 
 	// Traces.
-	if e.traces == nil {
+	switch d, ok := e.traces.(storeDoctor); {
+	case e.traces == nil:
 		add(SignalTraces, "info", "not configured")
-	} else if err := e.doctorTraces(ctx, r, add); err != nil {
-		add(SignalTraces, "fail", "%s", truncate(err.Error(), 200))
+	case e.rawTraces != nil:
+		if err := e.doctorTraces(ctx, r, add); err != nil {
+			add(SignalTraces, "fail", "%s", truncate(err.Error(), 200))
+		}
+	case ok:
+		d.doctor(ctx, e, r, func(status, msg string, args ...any) { add(SignalTraces, status, msg, args...) })
+	default:
+		e.doctorServices(ctx, SignalTraces, e.traces.Services, r, add)
 	}
 
 	if len(suggest) > 0 {
@@ -138,7 +152,7 @@ func candidates(names []string, hints []string, contains ...string) []string {
 }
 
 func (e *Engine) doctorLogs(ctx context.Context, r window.Range, add func(string, string, string, ...any), suggest *[]string) error {
-	src := e.logs
+	src := e.rawLogs
 	rows, err := src.Query(ctx, "* | stats count() n", r.Start, r.End, 0)
 	if err != nil {
 		return err
@@ -281,7 +295,7 @@ func (e *Engine) doctorLogs(ctx context.Context, r window.Range, add func(string
 		probe.cfg.Logs.SeverityFields = sevFields
 	}
 	if probe.cfg.Logs.EffectiveErrorFilter() != "" {
-		pats, _, err := probe.patternsIn(ctx, "*", r, nil)
+		pats, _, err := probe.patternsIn(ctx, e.rawLogs, "*", r, nil)
 		if err == nil {
 			nPats, nFam := 0, 0
 			type frag struct {
@@ -329,7 +343,7 @@ func (e *Engine) doctorLogs(ctx context.Context, r window.Range, add func(string
 
 func (e *Engine) doctorTraces(ctx context.Context, r window.Range, add func(string, string, string, ...any)) error {
 	t := e.cfg.Traces
-	rows, err := e.traces.Query(ctx, realSpans+" | field_names", r.Start, r.End, 0)
+	rows, err := e.rawTraces.Query(ctx, realSpans+" | field_names", r.Start, r.End, 0)
 	if err != nil {
 		return err
 	}
@@ -354,4 +368,23 @@ func (e *Engine) doctorTraces(ctx context.Context, r window.Range, add func(stri
 		add(SignalTraces, "info", "no %s field: self time sums child durations, so parallel calls are counted twice", t.StartField)
 	}
 	return nil
+}
+
+// storeDoctor is implemented by stores with their own doctor checks.
+type storeDoctor interface {
+	doctor(ctx context.Context, e *Engine, r window.Range, add func(status, msg string, args ...any))
+}
+
+// doctorServices is the minimal check for stores without their own: can
+// Spoor list services at all.
+func (e *Engine) doctorServices(ctx context.Context, sig string, list func(context.Context, window.Range) ([]string, error), r window.Range, add func(string, string, string, ...any)) {
+	names, err := list(ctx, r)
+	switch {
+	case err != nil:
+		add(sig, "fail", "cannot list services: %s", truncate(err.Error(), 200))
+	case len(names) == 0:
+		add(sig, "warn", "no services found in the window: check the service field or label")
+	default:
+		add(sig, "ok", "%d services", len(names))
+	}
 }

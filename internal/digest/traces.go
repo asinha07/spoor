@@ -57,8 +57,8 @@ func (e *Engine) spanStatsQuery(filter string) string {
 		filter, name, t.ErrorFilter, dur, dur, name, spanLimit)
 }
 
-func (e *Engine) spanStats(ctx context.Context, q string, r window.Range) (map[string]spanStat, error) {
-	rows, err := e.traces.Query(ctx, q, r.Start, r.End, 0)
+func (e *Engine) spanStats(ctx context.Context, src LogsSource, q string, r window.Range) (map[string]spanStat, error) {
+	rows, err := src.Query(ctx, q, r.Start, r.End, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -72,9 +72,7 @@ func (e *Engine) spanStats(ctx context.Context, q string, r window.Range) (map[s
 // scoreTraces compares span error rate and p95 per span name, and attributes
 // each slower span's share of the total added latency.
 func (e *Engine) scoreTraces(ctx context.Context, svc, op string, spec window.Spec) ([]Finding, error) {
-	filter := e.spanFilter(svc, op)
-	q := e.spanStatsQuery(filter)
-	cur, err := e.spanStats(ctx, q, spec.Window)
+	cur, err := e.traces.SpanStats(ctx, svc, op, spec.Window)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +80,7 @@ func (e *Engine) scoreTraces(ctx context.Context, svc, op string, spec window.Sp
 		return nil, nil
 	}
 	hist := window.Range{Start: spec.SubWindows[0].Start, End: spec.Baseline.End}
-	base, err := e.spanStats(ctx, q, hist)
+	base, err := e.traces.SpanStats(ctx, svc, op, hist)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +104,7 @@ func (e *Engine) scoreTraces(ctx context.Context, svc, op string, spec window.Sp
 		}
 	}
 
-	link := e.tracesLink(filter, hist.Start, spec.Window.End)
+	link := e.tracesLink(e.traces.Evidence(svc, op), hist.Start, spec.Window.End)
 	minSpans := float64(e.cfg.Scoring.MinSpans)
 	var out []Finding
 	for _, n := range names {
@@ -126,7 +124,7 @@ func (e *Engine) scoreTraces(ctx context.Context, svc, op string, spec window.Sp
 					Title:        fmt.Sprintf("Span %q errors %s → %s (%d spans)", n, humanValue(br, "ratio"), humanValue(er, "ratio"), int(c.n)),
 					EvidenceLink: link,
 				}
-				f.TraceID, f.onset = e.exampleSpan(ctx, filter, n, true, spec.Window)
+				f.TraceID, f.onset = e.traces.Example(ctx, svc, op, n, true, spec.Window)
 				f.Onset = fmtTime(f.onset)
 				out = append(out, f)
 			}
@@ -144,7 +142,7 @@ func (e *Engine) scoreTraces(ctx context.Context, svc, op string, spec window.Sp
 					Service: svc, Signal: SignalTraces, Kind: KindSpanSlower, Score: round2(s),
 					Before: humanNanos(b.p95), After: humanNanos(c.p95), Title: title, EvidenceLink: link,
 				}
-				f.TraceID, _ = e.exampleSpan(ctx, filter, n, false, spec.Window)
+				f.TraceID, _ = e.traces.Example(ctx, svc, op, n, false, spec.Window)
 				out = append(out, f)
 			}
 		}
@@ -154,7 +152,7 @@ func (e *Engine) scoreTraces(ctx context.Context, svc, op string, spec window.Sp
 
 // exampleSpan returns one trace ID for a span name (the slowest, or the
 // earliest failed one) and, for failures, when they started.
-func (e *Engine) exampleSpan(ctx context.Context, filter, name string, failed bool, r window.Range) (string, time.Time) {
+func (e *Engine) exampleSpan(ctx context.Context, src LogsSource, filter, name string, failed bool, r window.Range) (string, time.Time) {
 	t := e.cfg.Traces
 	q := filter + " " + backend.Eq(t.NameField, name)
 	if failed {
@@ -162,7 +160,7 @@ func (e *Engine) exampleSpan(ctx context.Context, filter, name string, failed bo
 	} else {
 		q += fmt.Sprintf(" | sort by (%s desc) | limit 1 | fields trace_id, _time", backend.Quote(t.DurationField))
 	}
-	rows, err := e.traces.Query(ctx, q, r.Start, r.End, 1)
+	rows, err := src.Query(ctx, q, r.Start, r.End, 1)
 	if err != nil || len(rows) == 0 {
 		return "", time.Time{}
 	}

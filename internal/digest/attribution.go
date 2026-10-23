@@ -70,7 +70,7 @@ func (s *selfStat) mean() float64 {
 	return s.total / s.n
 }
 
-func (e *Engine) spanRows(ctx context.Context, filter string, r window.Range) ([]spanRow, error) {
+func (e *Engine) spanRows(ctx context.Context, src LogsSource, filter string, r window.Range) ([]spanRow, error) {
 	t := e.cfg.Traces
 	// A quoted field name inside a fields list misbehaves in some versions, so
 	// copy the service field to a plain alias first.
@@ -82,20 +82,32 @@ func (e *Engine) spanRows(ctx context.Context, filter string, r window.Range) ([
 		fields += ", spoor_start"
 	}
 	q += " | fields " + fields
-	rows, err := e.traces.Query(ctx, q, r.Start, r.End, attributionSpanLimit)
+	rows, err := src.Query(ctx, q, r.Start, r.End, attributionSpanLimit)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]spanRow, 0, len(rows))
 	for _, row := range rows {
-		if e.ignored(row["spoor_svc"]) {
-			continue
-		}
 		out = append(out, spanRow{
 			traceID: row["trace_id"], spanID: row["span_id"], parentID: row["parent_span_id"],
 			svc: row["spoor_svc"], name: row["spoor_name"], dur: row.Float("spoor_dur"),
 			start: parseInt(row["spoor_start"]),
 		})
+	}
+	return out, nil
+}
+
+// attributionSpans fetches span rows and drops ignored services.
+func (e *Engine) attributionSpans(ctx context.Context, failedOnly bool, r window.Range) ([]spanRow, error) {
+	rows, err := e.traces.Spans(ctx, failedOnly, r)
+	if err != nil {
+		return nil, err
+	}
+	out := rows[:0]
+	for _, s := range rows {
+		if !e.ignored(s.svc) {
+			out = append(out, s)
+		}
 	}
 	return out, nil
 }
@@ -108,11 +120,11 @@ func (e *Engine) attribute(ctx context.Context, spec window.Spec) (*attribution,
 		originOps:    map[string]map[string]int{},
 		addedSelf:    map[string]float64{},
 	}
-	failed, err := e.spanRows(ctx, e.cfg.Traces.ErrorFilter, spec.Window)
+	failed, err := e.attributionSpans(ctx, true, spec.Window)
 	if err != nil {
 		return nil, err
 	}
-	cur, err := e.spanRows(ctx, "", spec.Window)
+	cur, err := e.attributionSpans(ctx, false, spec.Window)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +132,7 @@ func (e *Engine) attribute(ctx context.Context, spec window.Spec) (*attribution,
 	// their own span as failed.
 	a.errorOrigins(failed, cur)
 
-	base, err := e.spanRows(ctx, "", spec.Baseline)
+	base, err := e.attributionSpans(ctx, false, spec.Baseline)
 	if err != nil {
 		return nil, err
 	}

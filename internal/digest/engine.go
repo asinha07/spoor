@@ -19,14 +19,31 @@ import (
 type Engine struct {
 	cfg     config.Config
 	metrics MetricsSource
-	logs    LogsSource
-	traces  LogsSource
-	now     func() time.Time
-	redact  *redactor
+	logs    LogStore
+	traces  TraceStore
+	// rawLogs and rawTraces are the LogsQL clients behind VictoriaLogs and
+	// VictoriaTraces stores (nil for other backends); doctor uses them.
+	rawLogs, rawTraces LogsSource
+	now                func() time.Time
+	redact             *redactor
 }
 
-// New builds an engine. Any source may be nil when that backend is not configured.
+// New builds an engine on VictoriaMetrics-compatible metrics and LogsQL logs
+// and traces (VictoriaLogs, VictoriaTraces). Any source may be nil when that
+// backend is not configured.
 func New(cfg config.Config, metrics MetricsSource, logs, traces LogsSource) *Engine {
+	e := &Engine{cfg: cfg, metrics: metrics, rawLogs: logs, rawTraces: traces, now: time.Now, redact: newRedactor(cfg.Redact)}
+	if logs != nil {
+		e.logs = &victoriaLogs{e: e, src: logs}
+	}
+	if traces != nil {
+		e.traces = &victoriaTraces{e: e, src: traces}
+	}
+	return e
+}
+
+// NewWithStores builds an engine on any backends. Any store may be nil.
+func NewWithStores(cfg config.Config, metrics MetricsSource, logs LogStore, traces TraceStore) *Engine {
 	return &Engine{cfg: cfg, metrics: metrics, logs: logs, traces: traces, now: time.Now, redact: newRedactor(cfg.Redact)}
 }
 
