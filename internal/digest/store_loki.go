@@ -218,44 +218,61 @@ func (l *lokiLogs) Patterns(ctx context.Context, services []string, r window.Ran
 func (l *lokiLogs) patternsFor(ctx context.Context, services []string, r window.Range, onset bool, out servicePatterns) error {
 	lbl := l.svcLabel()
 	base := l.selector(services, false) + l.errFilter() + l.stages()
-	var series []backend.Series
-	var err error
-	step := r.Duration()
-	if onset {
-		step = r.Duration() / lokiOnsetSteps
-		if step < time.Minute {
-			step = time.Minute
-		}
-		q := fmt.Sprintf("sum by (%s, spoor_msg) (count_over_time(%s [%s]))", lbl, base, logqlDuration(step))
-		series, err = l.api.Range(ctx, q, r.Start.Add(step), r.End, step)
-	} else {
-		q := fmt.Sprintf("sum by (%s, spoor_msg) (count_over_time(%s [%s]))", lbl, base, logqlDuration(step))
-		series, err = l.api.Instant(ctx, q, r.End)
-	}
+	// Exact counts over the whole range.
+	q := fmt.Sprintf("sum by (%s, spoor_msg) (count_over_time(%s [%s]))", lbl, base, logqlDuration(r.Duration()))
+	series, err := l.api.Instant(ctx, q, r.End)
 	if err != nil {
 		return err
 	}
 	for _, s := range series {
 		svc, pat := s.Labels[lbl], s.Labels["spoor_msg"]
-		if out[svc] == nil {
-			out[svc] = map[string]patternStat{}
+		if n := scalarOf(s); n > 0 {
+			if out[svc] == nil {
+				out[svc] = map[string]patternStat{}
+			}
+			st := out[svc][pat]
+			st.n += n
+			out[svc][pat] = st
 		}
-		st := out[svc][pat]
+	}
+	if !onset {
+		return nil
+	}
+	// When each pattern first appeared: counts per whole-second step,
+	// anchored on the window end; the first step is clamped to the window.
+	step := (r.Duration() / lokiOnsetSteps).Truncate(time.Second)
+	if step < time.Minute {
+		step = time.Minute
+	}
+	k := int(r.Duration() / step)
+	if k < 1 {
+		k = 1
+	}
+	start := r.End.Add(-time.Duration(k-1) * step)
+	q = fmt.Sprintf("sum by (%s, spoor_msg) (count_over_time(%s [%s]))", lbl, base, logqlDuration(step))
+	series, err = l.api.Range(ctx, q, start, r.End, step)
+	if err != nil {
+		return nil // onset is a detail; counts are already exact
+	}
+	for _, s := range series {
+		svc, pat := s.Labels[lbl], s.Labels["spoor_msg"]
+		st, ok := out[svc][pat]
+		if !ok {
+			continue
+		}
 		for _, p := range s.Points {
 			if p.V <= 0 {
 				continue
 			}
-			st.n += p.V
-			if onset {
-				t := p.T.Add(-step)
-				if st.first.IsZero() || t.Before(st.first) {
-					st.first = t
-				}
+			t := p.T.Add(-step)
+			if t.Before(r.Start) {
+				t = r.Start
+			}
+			if st.first.IsZero() || t.Before(st.first) {
+				st.first = t
 			}
 		}
-		if st.n > 0 {
-			out[svc][pat] = st
-		}
+		out[svc][pat] = st
 	}
 	return nil
 }

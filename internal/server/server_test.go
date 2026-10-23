@@ -342,3 +342,74 @@ func TestMetricsAndLogs(t *testing.T) {
 		t.Errorf("want one success and one failure log record, got:\n%s", logs.String())
 	}
 }
+
+// TestReadOnlyEveryBackend runs every tool against fake Prometheus, Loki,
+// Tempo and New Relic backends and checks that Spoor only reads: GET or
+// POST to query endpoints, and for New Relic only the fixed nrql query.
+func TestReadOnlyEveryBackend(t *testing.T) {
+	var mu sync.Mutex
+	paths := map[string]bool{}
+	var nerdgraph []string
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		paths[r.Method+" "+r.URL.Path] = true
+		if r.URL.Path == "/graphql" {
+			b, _ := io.ReadAll(r.Body)
+			nerdgraph = append(nerdgraph, string(b))
+		}
+		mu.Unlock()
+		switch {
+		case r.URL.Path == "/graphql":
+			_, _ = io.WriteString(w, `{"data":{"actor":{"account":{"nrql":{"results":[]}}}}}`)
+		case strings.HasSuffix(r.URL.Path, "/values"):
+			_, _ = io.WriteString(w, `{"status":"success","data":["svc"],"tagValues":[{"value":"svc"}]}`)
+		case strings.HasPrefix(r.URL.Path, "/loki/"):
+			_, _ = io.WriteString(w, `{"status":"success","data":{"resultType":"vector","result":[]}}`)
+		case strings.HasPrefix(r.URL.Path, "/api/search"):
+			_, _ = io.WriteString(w, `{"traces":[]}`)
+		default:
+			_, _ = io.WriteString(w, `{"status":"success","data":{"resultType":"vector","result":[]}}`)
+		}
+	}))
+	defer fake.Close()
+	for _, types := range []config.Types{
+		{Metrics: config.TypePrometheus, Logs: config.TypeLoki, Traces: config.TypeTempo},
+		{Metrics: config.TypeNewRelic, Logs: config.TypeNewRelic, Traces: config.TypeNewRelic},
+	} {
+		cfg := config.DefaultFor(types)
+		cfg.Metrics.URL, cfg.Logs.URL, cfg.Traces.URL = fake.URL, fake.URL, fake.URL
+		cfg.NewRelic = config.NewRelicConfig{AccountID: 1, APIKey: "NRAK-test", URL: fake.URL + "/graphql"}
+		cs := connect(t, New(digest.NewFromConfig(cfg), "test"))
+		for _, tool := range []string{"what_changed", "new_errors", "trace_diff", "list_services"} {
+			var v any
+			callJSON(t, cs, tool, map[string]any{}, &v)
+		}
+	}
+	for p := range paths {
+		method, path, _ := strings.Cut(p, " ")
+		if method != http.MethodPost && method != http.MethodGet {
+			t.Errorf("unexpected method %s", p)
+		}
+		ok := false
+		for _, allowed := range backend.AllowedPaths {
+			ok = ok || strings.HasPrefix(path, allowed)
+		}
+		if !ok {
+			t.Errorf("call to %s is not a read-only query endpoint", path)
+		}
+	}
+	if len(nerdgraph) == 0 {
+		t.Fatal("no New Relic calls observed")
+	}
+	for _, body := range nerdgraph {
+		var req struct {
+			Query string `json:"query"`
+		}
+		if err := json.Unmarshal([]byte(body), &req); err != nil {
+			t.Fatal(err)
+		}
+		if req.Query != `query($id: Int!, $nrql: Nrql!) { actor { account(id: $id) { nrql(query: $nrql, timeout: 60) { results } } } }` {
+			t.Errorf("NerdGraph request is not the fixed read-only nrql query: %s", req.Query)
+		}
+	}
+}

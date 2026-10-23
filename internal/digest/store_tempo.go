@@ -83,9 +83,17 @@ func (t *tempoTraces) Services(ctx context.Context, r window.Range) ([]string, e
 func (t *tempoTraces) Evidence(svc, op string) string { return t.filter(svc, op, "", false) }
 
 func (t *tempoTraces) SpanStats(ctx context.Context, svc, op string, r window.Range) (map[string]spanStat, error) {
-	traces, err := t.api.Search(ctx, t.filter(svc, op, "", false)+" | select(status, name)", r.Start, r.End, tempoStatTraces, tempoStatSpans)
-	if err != nil {
-		return nil, err
+	// Tempo limits a search's time range (168h by default), so long
+	// baselines are searched in day-sized pieces, each sampled.
+	chunks := splitRange(r, 24*time.Hour)
+	limit := max(50, tempoStatTraces/len(chunks))
+	var traces []backend.TempoTrace
+	for _, c := range chunks {
+		got, err := t.api.Search(ctx, t.filter(svc, op, "", false)+" | select(status, name)", c.Start, c.End, limit, tempoStatSpans)
+		if err != nil {
+			return nil, err
+		}
+		traces = append(traces, got...)
 	}
 	durs := map[string][]float64{}
 	out := map[string]spanStat{}
@@ -110,8 +118,24 @@ func (t *tempoTraces) SpanStats(ctx context.Context, svc, op string, r window.Ra
 }
 
 func (t *tempoTraces) Example(ctx context.Context, svc, op, name string, failed bool, r window.Range) (string, time.Time) {
-	traces, err := t.api.Search(ctx, t.filter(svc, op, name, failed), r.Start, r.End, 50, 5)
-	if err != nil || len(traces) == 0 {
+	ranges := []window.Range{r}
+	if failed {
+		// Search returns some matching traces, not the earliest: walk the
+		// window forward in sixths and take the first part with failures.
+		ranges = splitRange(r, r.Duration()/6)
+	}
+	var traces []backend.TempoTrace
+	for _, part := range ranges {
+		got, err := t.api.Search(ctx, t.filter(svc, op, name, failed), part.Start, part.End, 50, 5)
+		if err != nil {
+			return "", time.Time{}
+		}
+		if len(got) > 0 {
+			traces = got
+			break
+		}
+	}
+	if len(traces) == 0 {
 		return "", time.Time{}
 	}
 	var best backend.TempoSpan
@@ -262,6 +286,22 @@ func topSpanNames(m map[string]spanStat, n int) map[string]spanStat {
 	out := make(map[string]spanStat, n)
 	for _, k := range names[:n] {
 		out[k] = m[k]
+	}
+	return out
+}
+
+// splitRange cuts r into consecutive pieces no longer than size.
+func splitRange(r window.Range, size time.Duration) []window.Range {
+	if size <= 0 || r.Duration() <= size {
+		return []window.Range{r}
+	}
+	var out []window.Range
+	for s := r.Start; s.Before(r.End); s = s.Add(size) {
+		e := s.Add(size)
+		if e.After(r.End) {
+			e = r.End
+		}
+		out = append(out, window.Range{Start: s, End: e})
 	}
 	return out
 }

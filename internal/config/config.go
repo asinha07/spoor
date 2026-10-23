@@ -525,6 +525,15 @@ func (c Config) Validate() error {
 			return fmt.Errorf("%s.type %q: want one of %s", sig, typ, strings.Join(validTypes[sig], ", "))
 		}
 	}
+	switch c.Traces.Type {
+	case TypeTempo, TypeNewRelic:
+		if strings.TrimSpace(c.Traces.ErrorFilter) == "" {
+			return fmt.Errorf("traces.error_filter is required for traces.type %s (e.g. %q)", c.Traces.Type, DefaultFor(Types{Traces: c.Traces.Type}).Traces.ErrorFilter)
+		}
+	}
+	if c.Traces.Type == TypeNewRelic && (c.Traces.DurationField == "" || c.Traces.ServiceField == "" || c.Traces.NameField == "") {
+		return fmt.Errorf("traces: service_field, name_field and duration_field are required for type newrelic")
+	}
 	if c.UsesNewRelic() && c.NewRelic.AccountID == 0 {
 		return fmt.Errorf("newrelic.account_id is required when a signal has type newrelic (or set NEW_RELIC_ACCOUNT_ID)")
 	}

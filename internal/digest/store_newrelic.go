@@ -374,12 +374,24 @@ func (n *newRelicLogs) errorCounts(ctx context.Context, services []string, r win
 // bucketed runs "<q> FACET service" per bucket: one TIMESERIES query when
 // the buckets are contiguous and equal, else one query each.
 func (n *newRelicLogs) bucketed(ctx context.Context, q string, buckets []window.Range, field string) (map[string][]float64, error) {
-	out := map[string][]float64{}
-	add := func(svc string, i int, v float64) {
-		if out[svc] == nil {
-			out[svc] = make([]float64, len(buckets))
+	m, err := n.bucketedFields(ctx, q, buckets, field)
+	return m[field], err
+}
+
+// bucketedFields is bucketed for several result fields from one query.
+func (n *newRelicLogs) bucketedFields(ctx context.Context, q string, buckets []window.Range, fields ...string) (map[string]map[string][]float64, error) {
+	out := map[string]map[string][]float64{}
+	for _, f := range fields {
+		out[f] = map[string][]float64{}
+	}
+	addRow := func(row map[string]any, i int) {
+		svc := nrFacet(row, 0)
+		for _, f := range fields {
+			if out[f][svc] == nil {
+				out[f][svc] = make([]float64, len(buckets))
+			}
+			out[f][svc][i] += nrNum(row, f)
 		}
-		out[svc][i] += v
 	}
 	step := buckets[0].Duration()
 	regular := len(buckets) > 1
@@ -395,7 +407,7 @@ func (n *newRelicLogs) bucketed(ctx context.Context, q string, buckets []window.
 			begin := time.Unix(int64(nrNum(row, "beginTimeSeconds")), 0)
 			i := int(math.Round(float64(begin.Sub(buckets[0].Start)) / float64(step)))
 			if i >= 0 && i < len(buckets) {
-				add(nrFacet(row, 0), i, nrNum(row, field))
+				addRow(row, i)
 			}
 		}
 		return out, nil
@@ -406,7 +418,7 @@ func (n *newRelicLogs) bucketed(ctx context.Context, q string, buckets []window.
 			return nil, err
 		}
 		for _, row := range rows {
-			add(nrFacet(row, 0), i, nrNum(row, field))
+			addRow(row, i)
 		}
 	}
 	return out, nil
@@ -426,16 +438,11 @@ func (n *newRelicLogs) Totals(ctx context.Context, services []string, all bool, 
 		sel += ", filter(count(*), WHERE " + u + ") AS unclassified"
 	}
 	q := "SELECT " + sel + " FROM Log" + n.where(services, all, false)
-	totals, err := n.bucketed(ctx, q, buckets, "total")
+	per, err := n.bucketedFields(ctx, q, buckets, "total", "unclassified")
 	if err != nil {
 		return nil, err
 	}
-	var uncl map[string][]float64
-	if n.e.cfg.Logs.UnclassifiedFilter() != "" {
-		if uncl, err = n.bucketed(ctx, q, buckets, "unclassified"); err != nil {
-			return nil, err
-		}
-	}
+	totals, uncl := per["total"], per["unclassified"]
 	out := map[string][]volume{}
 	for svc, vals := range totals {
 		vs := make([]volume, len(buckets))
@@ -481,8 +488,8 @@ func (n *newRelicLogs) CountLines(ctx context.Context, r window.Range) (float64,
 // --- Traces ----------------------------------------------------------------
 
 const (
-	nrAttrFailed = 50 // failed traces read whole for attribution
-	nrAttrSample = 50 // other traces read whole for latency attribution
+	nrAttrFailed = 30 // failed (and other) traces read whole for attribution
+	nrRowLimit   = 5000
 )
 
 // newRelicTraces implements TraceStore on New Relic Span events. Span
@@ -501,7 +508,7 @@ func (n *newRelicTraces) BiasedSpans() bool { return true }
 
 // SampleNote is reported in coverage when traces are scored.
 func (n *newRelicTraces) SampleNote() string {
-	return fmt.Sprintf("spans are New Relic's sample of traces; attribution reads up to %d failed and %d other traces", nrAttrFailed, nrAttrSample)
+	return fmt.Sprintf("spans are New Relic's sample of traces; attribution reads up to %d failed and %d other traces", nrAttrFailed, nrAttrFailed)
 }
 
 func (n *newRelicTraces) cfg() config.TracesConfig { return n.e.cfg.Traces }
@@ -557,36 +564,49 @@ func (n *newRelicTraces) SpanStats(ctx context.Context, svc, op string, r window
 
 func (n *newRelicTraces) Example(ctx context.Context, svc, op, name string, failed bool, r window.Range) (string, time.Time) {
 	c := n.cfg()
-	q := fmt.Sprintf("SELECT trace.id, timestamp, %s FROM Span%s LIMIT 100", config.NRQLField(c.DurationField), n.where(svc, op, name, failed)) + backend.NRQLRange(r.Start, r.End)
-	rows, err := n.api.NRQL(ctx, q)
+	rng := backend.NRQLRange(r.Start, r.End)
+	if failed {
+		// Aggregates over all matching spans, not a sample of the newest.
+		rows, err := n.api.NRQL(ctx, "SELECT min(timestamp) AS first, earliest(trace.id) AS tid FROM Span"+n.where(svc, op, name, true)+rng)
+		if err != nil || len(rows) == 0 || nrNum(rows[0], "first") == 0 {
+			return "", time.Time{}
+		}
+		return backend.NRQLString(rows[0]["tid"]), time.UnixMilli(int64(nrNum(rows[0], "first"))).UTC()
+	}
+	// Facets sort by their first aggregate, descending: the slowest trace.
+	rows, err := n.api.NRQL(ctx, fmt.Sprintf("SELECT max(%s) AS slowest FROM Span%s FACET trace.id LIMIT 1", config.NRQLField(c.DurationField), n.where(svc, op, name, false))+rng)
 	if err != nil || len(rows) == 0 {
 		return "", time.Time{}
 	}
-	best := rows[0]
-	for _, row := range rows[1:] {
-		if failed && nrNum(row, "timestamp") < nrNum(best, "timestamp") {
-			best = row
-		}
-		if !failed && nrNum(row, c.DurationField) > nrNum(best, c.DurationField) {
-			best = row
-		}
-	}
-	tid := backend.NRQLString(best["trace.id"])
-	if !failed {
-		return tid, time.Time{}
-	}
-	return tid, time.UnixMilli(int64(nrNum(best, "timestamp"))).UTC()
+	return nrFacet(rows[0], 0), time.Time{}
 }
 
 func (n *newRelicTraces) Spans(ctx context.Context, failedOnly bool, r window.Range) ([]spanRow, error) {
+	// NRQL returns at most nrRowLimit rows. Hitting it would cut traces and
+	// break their parent links, so read fewer traces until they fit.
+	for k := nrAttrFailed; ; k /= 2 {
+		rows, err := n.spanRows(ctx, failedOnly, r, k)
+		if err != nil {
+			return nil, err
+		}
+		if len(rows) < nrRowLimit {
+			return rows, nil
+		}
+		if k <= 4 {
+			return nil, fmt.Errorf("traces too large for attribution: %d traces exceed NRQL's %d-row limit", k, nrRowLimit)
+		}
+	}
+}
+
+func (n *newRelicTraces) spanRows(ctx context.Context, failedOnly bool, r window.Range, traces int) ([]spanRow, error) {
 	c := n.cfg()
 	rng := backend.NRQLRange(r.Start, r.End)
-	in := fmt.Sprintf("trace.id IN (SELECT uniques(trace.id, %d) FROM Span WHERE %s%s)", nrAttrFailed, c.ErrorFilter, rng)
+	in := fmt.Sprintf("trace.id IN (SELECT uniques(trace.id, %d) FROM Span WHERE %s%s)", traces, c.ErrorFilter, rng)
 	where := " WHERE " + in
 	if failedOnly {
 		where += " AND " + c.ErrorFilter
 	} else {
-		where = fmt.Sprintf(" WHERE (%s OR trace.id IN (SELECT uniques(trace.id, %d) FROM Span%s))", in, nrAttrSample, rng)
+		where = fmt.Sprintf(" WHERE (%s OR trace.id IN (SELECT uniques(trace.id, %d) FROM Span%s))", in, traces, rng)
 	}
 	q := fmt.Sprintf("SELECT trace.id, id, parent.id, %s, %s, %s, timestamp FROM Span%s LIMIT MAX",
 		config.NRQLField(c.ServiceField), config.NRQLField(c.NameField), config.NRQLField(c.DurationField), where) + rng
