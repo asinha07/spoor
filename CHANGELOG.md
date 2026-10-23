@@ -1,14 +1,46 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-10-23)
+
+New backends. Each signal picks one with `type:`, and they can be mixed. See [docs/backends.md](docs/backends.md).
 
 ### Added
-- Website at [telespoor.com](https://telespoor.com): install, connect (Claude Code, Codex, Cursor, Claude Desktop,
-  VS Code, shared HTTP), tools and benchmark on one page. Source in `site/`.
-- Codex setup in the getting-started guide.
+- **Prometheus** metrics (also Mimir, Thanos, Cortex): `metrics.type: prometheus`. Evidence links open the
+  Prometheus expression browser.
+- **Loki** logs: `logs.type: loki`. Error lines are normalized into patterns on the server with LogQL and counted
+  exactly. When Loki's series limit refuses a grouping query, Spoor splits it per service, and only a service with
+  more patterns than the limit is grouped from a sample of its error lines (`coverage.logs_sample`).
+- **Tempo** traces: `traces.type: tempo`. Span statistics come from TraceQL search samples and attribution from
+  whole traces fetched by ID; `coverage.traces_sample` says so.
+- **New Relic** metrics, logs and traces through NerdGraph: `type: newrelic`, `newrelic.account_id`, and a User key in
+  `NEW_RELIC_API_KEY`. Only read-only `nrql` queries are sent, at most five at a time.
+- On New Relic, all-services scans first rank every service by its change in request rate, error rate and p95 (two
+  batched queries) and examine the most changed ones; before, a capped scan took the first services alphabetically.
+- `tenant` (X-Scope-OrgID) for multi-tenant Loki and Tempo.
+- `SPOOR_METRICS_TYPE`, `SPOOR_LOGS_TYPE`, `SPOOR_TRACES_TYPE`, `NEW_RELIC_ACCOUNT_ID`, `SPOOR_NEWRELIC_REGION`.
+- `--log-level` on every CLI command; `debug` logs each backend query (and a preview of New Relic results).
+- `make it-grafana`: the payment-failure and control incidents against real Prometheus, Loki and Tempo.
+- [docs/backends.md](docs/backends.md), [docs/roadmap.md](docs/roadmap.md), `examples/grafana-stack.yaml`,
+  `examples/newrelic.yaml`.
+- Website at [telespoor.com](https://telespoor.com) (source in `site/`); Codex setup in the getting-started guide.
 
 ### Changed
-- `server.json` points `websiteUrl` at telespoor.com (takes effect in the registry with the next release).
+- A span's p95 is compared only with at least 20 spans in the window and the baseline; with fewer, it is the slowest
+  call. Found on real New Relic data, where rare spans produced most of the findings on a normal day.
+- Nested spans with exactly the same before/after p95 (framework filter chains) are one finding:
+  "… (and N nested spans with the same timing)".
+- With New Relic traces, a span-level change is reported only when the service's own latency or error-rate metric
+  moved the same way: New Relic samples spans with a bias towards slow and failed requests. The rest are counted in
+  `coverage.traces_held_back` and the summary.
+- A missing baseline is reported only for signals that had data in the window, so a backend with no data at all no
+  longer produces a "no baseline data" summary.
+- Label values are read with GET (Prometheus does not accept POST there).
+- Logs and traces are read through backend-neutral `LogStore` and `TraceStore` interfaces; VictoriaLogs and
+  VictoriaTraces send the same queries as before.
+- `server.json` points `websiteUrl` at telespoor.com.
+
+### Fixed
+- Percent changes no longer print as "+-0%".
 
 ## 0.2.1 (2026-10-16)
 

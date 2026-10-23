@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Spoor: what changed, and where it started</title>
-<meta name="description" content="Spoor is an open-source MCP server for VictoriaMetrics, VictoriaLogs and VictoriaTraces. Your AI agent asks what changed; Spoor answers in a few hundred tokens, with the service where the failure started on top.">
+<meta name="description" content="Spoor is an open-source MCP server for VictoriaMetrics, Prometheus, Loki, Tempo and New Relic. Your AI agent asks what changed; Spoor answers in a few hundred tokens, with the service where the failure started on top.">
 <link rel="canonical" href="https://telespoor.com/">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <meta property="og:title" content="Spoor: what changed, and where it started">
@@ -214,12 +214,12 @@ footer { border-top: 1px solid var(--line); padding: 48px 0 64px; color: var(--s
   <div class="hero">
     <div>
       <h1>Find where the failure started.</h1>
-      <p class="lede">Spoor is an open-source MCP server for VictoriaMetrics, VictoriaLogs and VictoriaTraces. Your AI agent asks what changed. Spoor answers in a few hundred tokens, with the cause on top and the echoes labelled.</p>
+      <p class="lede">Spoor is an open-source MCP server for VictoriaMetrics, Prometheus, Loki, Tempo and New Relic. Your AI agent asks what changed. Spoor answers in a few hundred tokens, with the cause on top and the echoes labelled.</p>
       <div class="actions">
         <a class="btn btn-primary" href="#install">Install Spoor</a>
         <a class="btn btn-quiet" href="https://github.com/asinha07/spoor">View on GitHub</a>
       </div>
-      <p class="meta">Version 0.2.1. Apache-2.0. Read-only, no LLM inside, same input gives the same answer.</p>
+      <p class="meta">Version 0.3.0. Apache-2.0. Read-only, no LLM inside, same input gives the same answer.</p>
     </div>
 
     <figure class="trail" id="trail" aria-label="Three services fail at once. Spoor follows the trail back from frontend and checkout to payment, where the failure started." style="margin:0">
@@ -324,7 +324,7 @@ footer { border-top: 1px solid var(--line); padding: 48px 0 64px; color: var(--s
             <div class="panel" role="tabpanel">
               <div class="code"><pre><code>OS=$(uname -s | tr A-Z a-z)
 ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
-curl -fsSL "https://github.com/asinha07/spoor/releases/download/v0.2.1/spoor_0.2.1_${OS}_${ARCH}.tar.gz" | tar -xz spoor
+curl -fsSL "https://github.com/asinha07/spoor/releases/download/v0.3.0/spoor_0.3.0_${OS}_${ARCH}.tar.gz" | tar -xz spoor
 sudo mv spoor /usr/local/bin/
 spoor version</code></pre></div>
             </div>
@@ -338,7 +338,7 @@ spoor version</code></pre></div>
   -e SPOOR_METRICS_URL=http://host.docker.internal:8428 \
   -e SPOOR_LOGS_URL=http://host.docker.internal:9428 \
   -e SPOOR_TRACES_URL=http://host.docker.internal:10428 \
-  ghcr.io/asinha07/spoor:0.2.1</code></pre></div>
+  ghcr.io/asinha07/spoor:0.3.0</code></pre></div>
             </div>
             <div class="panel" role="tabpanel" hidden>
               <div class="code"><pre><code>git clone https://github.com/asinha07/spoor && cd spoor
@@ -346,7 +346,7 @@ make build          <span class="c"># ./bin/spoor</span>
 ./bin/spoor version</code></pre></div>
             </div>
             <div class="panel" role="tabpanel" hidden>
-              <p>Download <code>spoor_0.2.1_windows_amd64.zip</code> (or <code>arm64</code>) from the <a href="https://github.com/asinha07/spoor/releases/latest">releases page</a>, unzip it and put <code>spoor.exe</code> on your <code>PATH</code>.</p>
+              <p>Download <code>spoor_0.3.0_windows_amd64.zip</code> (or <code>arm64</code>) from the <a href="https://github.com/asinha07/spoor/releases/latest">releases page</a>, unzip it and put <code>spoor.exe</code> on your <code>PATH</code>.</p>
             </div>
           </div>
         </div>
@@ -355,14 +355,41 @@ make build          <span class="c"># ./bin/spoor</span>
       <li>
         <div>
           <h3>Point it at your backends</h3>
-          <p>Set the three URLs, then run <code>doctor</code>. It samples each backend, reports what Spoor can and can't see, and suggests a config for logs that don't follow OpenTelemetry naming.</p>
-          <div class="code"><pre><code>export SPOOR_METRICS_URL=http://victoriametrics:8428
+          <p>Pick a backend for each signal and mix them freely, then run <code>doctor</code>. It checks each backend from Spoor's side and says what it can and can't see.</p>
+          <div class="tabs" data-tabs>
+            <div class="tablist" role="tablist" aria-label="Backends">
+              <button role="tab" aria-selected="true">VictoriaMetrics stack</button>
+              <button role="tab" aria-selected="false">Prometheus, Loki, Tempo</button>
+              <button role="tab" aria-selected="false">New Relic</button>
+            </div>
+            <div class="panel" role="tabpanel">
+              <div class="code"><pre><code>export SPOOR_METRICS_URL=http://victoriametrics:8428
 export SPOOR_LOGS_URL=http://victorialogs:9428
 export SPOOR_TRACES_URL=http://victoriatraces:10428
 
 spoor doctor --since 15m
 spoor what-changed --since 30m --pretty</code></pre></div>
-          <p class="muted">For anything beyond URLs, put a <code>spoor.yaml</code> next to it and pass <code>--config</code> or set <code>SPOOR_CONFIG</code>. Keep passwords and tokens in environment variables such as <code>SPOOR_LOGS_PASSWORD</code>, not in the file. Every option is in the <a href="https://github.com/asinha07/spoor/blob/main/docs/configuration.md">configuration guide</a>.</p>
+            </div>
+            <div class="panel" role="tabpanel" hidden>
+              <p>Also Mimir and Thanos for metrics. Loki and Tempo have no UI of their own, so set Grafana datasources in the config for evidence links. Tempo statistics come from a sample of traces, and the answer says so.</p>
+              <div class="code"><pre><code>export SPOOR_METRICS_TYPE=prometheus SPOOR_METRICS_URL=http://prometheus:9090
+export SPOOR_LOGS_TYPE=loki SPOOR_LOGS_URL=http://loki:3100
+export SPOOR_TRACES_TYPE=tempo SPOOR_TRACES_URL=http://tempo:3200
+
+spoor doctor --since 15m</code></pre></div>
+            </div>
+            <div class="panel" role="tabpanel" hidden>
+              <p>APM transactions, logs and spans through NRQL, with a User key (<code>NRAK-…</code>). Spoor sends read-only queries only. New Relic samples spans with a bias towards slow and failed requests, so a span change is reported only when the service's own metrics agree.</p>
+              <div class="code"><pre><code>export SPOOR_METRICS_TYPE=newrelic
+export SPOOR_LOGS_TYPE=newrelic
+export SPOOR_TRACES_TYPE=newrelic
+export NEW_RELIC_ACCOUNT_ID=1234567
+export NEW_RELIC_API_KEY=NRAK-...
+
+spoor doctor --since 15m</code></pre></div>
+            </div>
+          </div>
+          <p class="muted">For anything beyond URLs, put a <code>spoor.yaml</code> next to it and pass <code>--config</code> or set <code>SPOOR_CONFIG</code>. Keep passwords and tokens in environment variables such as <code>SPOOR_LOGS_PASSWORD</code>, not in the file. Setup per backend is in the <a href="https://github.com/asinha07/spoor/blob/main/docs/backends.md">backends guide</a>, and every option in the <a href="https://github.com/asinha07/spoor/blob/main/docs/configuration.md">configuration guide</a>.</p>
           <p class="muted">No stack to try it on? <code>make it-up && make demo-data</code> in the repo starts empty backends and loads six incidents with known answers.</p>
         </div>
       </li>

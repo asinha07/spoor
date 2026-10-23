@@ -28,6 +28,7 @@ kubectl create namespace monitoring      # if it doesn't exist; or change namesp
 kubectl -n monitoring create secret generic spoor-secrets \
   --from-literal=SPOOR_HTTP_TOKEN="$(openssl rand -hex 32)"
 #   --from-literal=SPOOR_METRICS_TOKEN=… --from-literal=SPOOR_LOGS_TOKEN=… --from-literal=SPOOR_TRACES_TOKEN=…
+#   New Relic: --from-literal=NEW_RELIC_API_KEY=NRAK-…
 
 # 2. Point the config at your backends: edit deploy/kubernetes/configmap.yaml
 #    (metrics/logs/traces URLs, ui_url for evidence links, ignore_services, your query recipes).
@@ -97,6 +98,9 @@ used. It never writes to your backends and has no shell or file access.
   auth). VictoriaMetrics and VictoriaLogs enterprise or `vmauth` can scope a token to the select paths. Through
   Grafana's datasource proxy, use a service account with the Viewer role (see
   [Behind Grafana](configuration.md#behind-grafana)).
+- On New Relic, use a User key from a user with read-only access to the account; Spoor only sends NerdGraph `nrql`
+  queries. NRQL calls count against the account's query limits (3,000 a minute); a 25-service scan is a few hundred
+  queries.
 - Pass tokens through environment variables or a Secret, never in the config file or in Git.
 - Always set `SPOOR_HTTP_TOKEN` (or `--auth-token`) when serving HTTP. Spoor compares it in constant time, answers
   `401` otherwise, and logs a warning at startup if no token is set. `/healthz` and `/metrics` stay open for probes

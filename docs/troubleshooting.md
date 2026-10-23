@@ -113,9 +113,38 @@ about 6%. Use cores instead: `sum(rate(container_cpu_usage_seconds_total{…}[{{
 ## Evidence links don't open
 
 Links point at `ui_url` (or `url` when unset). If Spoor reaches the backends on internal addresses, set `ui_url` to
-the address people use in a browser.
+the address people use in a browser. Loki and Tempo have no UI of their own: findings from them carry links only when
+`grafana.logs_datasource` / `grafana.traces_datasource` are set.
+
+## New Relic: `backend unavailable … authentication required` or no data
+
+The key must be a **User** key (`NRAK-…`), not an ingest or license key, in `NEW_RELIC_API_KEY`, and
+`newrelic.account_id` must be an account that key can read. EU accounts need `newrelic.region: eu`. `spoor doctor`
+lists how many services each signal sees: zero logs services usually means logs go elsewhere or carry no
+`entity.name`; set `logs.service_field`.
+
+## New Relic: many span findings on a normal day
+
+Before 0.3.0 this was common: New Relic samples spans with a bias towards slow and failed traces. Spoor now reports a
+span change only when the service's own latency or error-rate metric agrees, and counts the rest in
+`coverage.traces_held_back`. If spans are your only signal for a service (no APM transactions), set metrics templates
+that read `Span` events.
+
+## Loki: `logs_sample` in coverage
+
+A service had more distinct error patterns than Loki's `max_query_series` (500 by default) allows in one query, so its
+patterns were grouped from its latest 5,000 error lines; counts are still exact. Raise `max_query_series`, or add
+`logs.normalize` rules for the values that make messages unique (`spoor doctor` shows the worst offenders on
+VictoriaLogs).
+
+## Tempo: traces show `no data` for a window you know has traffic
+
+Spoor searches with explicit start and end times. Tempo answers those from flushed blocks, and from ingesters only
+for the last `query_ingesters_until` (30 minutes by default). Check that blocks are being flushed and polled
+(`tempo_ingester_blocks_flushed_total`, `blocklist_poll`).
 
 ## Still stuck
 
-Run `spoor serve --log-level debug` to log every backend query with its status and duration, and open an issue with the command, the `coverage` block and your config (remove
+Run any command with `--log-level debug` (for example `spoor what-changed --since 30m --log-level debug`) to log
+every backend query with its status and duration (and, for New Relic, a preview of each result), and open an issue with the command, the `coverage` block and your config (remove
 tokens and URLs you consider private).

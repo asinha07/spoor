@@ -22,11 +22,11 @@ Humans can use the CLI.
 No. Each signal works on its own and `coverage` says which answered. Traces are what let Spoor tell a cause from
 its echoes; without them you still get ranked metric and log changes.
 
-**Does it work with Prometheus, Loki, Tempo, Elasticsearch, Datadog?**
-Not officially yet. The metrics side uses the standard Prometheus HTTP query API and the default queries are valid
-PromQL, so pointing `metrics.url` at Prometheus or a Prometheus-compatible store may work, but it is untested and
-evidence links assume VMUI. Logs and traces need VictoriaLogs and VictoriaTraces. Prometheus, Loki and Tempo
-adapters are the next milestone.
+**Does it work with Prometheus, Loki, Tempo, New Relic, Elasticsearch, Datadog?**
+Prometheus (and Mimir, Thanos), Loki, Tempo and New Relic: yes, since 0.3.0, alongside the VictoriaMetrics stack. Each
+signal picks its backend with `type:` and they can be mixed; see [backends](backends.md) for what differs (Tempo
+statistics are sampled; New Relic span changes need the service's metrics to agree). Elasticsearch/OpenSearch and
+Datadog are on the [roadmap](roadmap.md).
 
 **Do I need OpenTelemetry?**
 No, but the defaults assume OTel names. Other naming is a config change: see the

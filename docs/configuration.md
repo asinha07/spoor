@@ -22,6 +22,9 @@ Then check the services and signals Spoor finds:
 spoor list-services --config spoor.yaml --since 10m --pretty
 ```
 
+Prometheus, Loki, Tempo or New Relic: set each signal's `type` first; it switches the defaults below to that
+backend's. Setup per backend: [backends](backends.md).
+
 ## Full reference
 
 Every key with its default (the same as [`examples/spoor.yaml`](../examples/spoor.yaml)).
@@ -31,6 +34,11 @@ Every key with its default (the same as [`examples/spoor.yaml`](../examples/spoo
 # Unknown keys are rejected. Run `spoor doctor --config this-file` to check it
 # against your backends; it suggests service and severity fields for your logs.
 # Query templates receive {{.Service}} (already quoted) and {{.Window}} (e.g. 30m).
+#
+# These are the defaults for the VictoriaMetrics stack. Each signal's `type`
+# (victoriametrics/prometheus/newrelic, victorialogs/loki/newrelic,
+# victoriatraces/tempo/newrelic) switches its defaults to fit that backend;
+# see docs/backends.md.
 
 timeout: 20s
 max_services: 25            # cap for all-services scans (metrics and traces are queried per service)
@@ -43,6 +51,14 @@ redact: []
 #  - regex: 'sess_[a-z]{12}'
 #    replace: '<SESSION>'
 
+# New Relic account for signals of type newrelic. Keep the User API key
+# (NRAK-...) in NEW_RELIC_API_KEY or SPOOR_NEWRELIC_API_KEY, not here.
+newrelic:
+  account_id: 0              # or NEW_RELIC_ACCOUNT_ID
+  api_key: ""
+  region: us                 # us or eu
+  url: ""                    # NerdGraph endpoint override (proxies, tests)
+
 # Evidence links open Grafana Explore instead of VMUI when a datasource is set.
 grafana:
   url: ""                    # e.g. https://grafana.example.com
@@ -51,6 +67,7 @@ grafana:
   traces_datasource: {uid: "", type: ""}
 
 metrics:
+  type: victoriametrics      # or prometheus (also Mimir, Thanos), newrelic; or SPOOR_METRICS_TYPE
   url: http://localhost:8428
   bearer_token: ""           # or SPOOR_METRICS_TOKEN
   username: ""               # HTTP Basic auth, used when no bearer token is set
@@ -72,18 +89,21 @@ metrics:
       query: 'max(max_over_time(kafka_consumer_lag{service_name={{.Service}}}[{{.Window}}]))'
 
 logs:
+  type: victorialogs         # or loki, newrelic; or SPOOR_LOGS_TYPE
   url: http://localhost:9428
+  tenant: ""                 # Loki: X-Scope-OrgID
   bearer_token: ""
   username: ""
   password: ""
   ui_url: ""
-  service_field: service.name
+  service_field: service.name   # a label for Loki, an attribute for New Relic
   # Fields that may hold a log level. Spoor builds the error filter from them
   # (values err, error, fatal, crit, critical, alert, emerg, panic, severe) and
   # reports the share of lines that carry none of them.
   severity_fields: [severity_text]
-  # Replaces the filter built from severity_fields. Use it when some levels
-  # are only in the message text; `spoor doctor` suggests one.
+  # Replaces the filter built from severity_fields, in the backend's language
+  # (LogsQL, a LogQL pipeline, or an NRQL condition). Use it when some levels
+  # are only in the message text; `spoor doctor` suggests one for LogsQL.
   error_filter: ""
   # Replace tokens that mix letters and digits (order, cart, product IDs) with
   # <ID> before grouping error lines, so one error is one pattern.
@@ -101,7 +121,9 @@ logs:
   code_fields: [error_code, errorCode, error.code, code, exception.type, error.type]
 
 traces:
+  type: victoriatraces       # or tempo, newrelic; or SPOOR_TRACES_TYPE
   url: http://localhost:10428
+  tenant: ""                 # Tempo: X-Scope-OrgID
   bearer_token: ""
   username: ""
   password: ""
@@ -110,7 +132,7 @@ traces:
   name_field: name
   duration_field: duration   # nanoseconds
   start_field: start_time_unix_nano  # lets self time count parallel child calls once; "" to sum children
-  error_filter: 'status_code:=2'
+  error_filter: 'status_code:=2'   # Tempo: status = error; New Relic: error IS true
 
 scoring:
   report_threshold: 0.5      # 0.5 = robust z-score of 3
@@ -161,9 +183,12 @@ Environment variables override the file.
 | `SPOOR_METRICS_URL`, `SPOOR_LOGS_URL`, `SPOOR_TRACES_URL` | `*.url` |
 | `SPOOR_METRICS_TOKEN`, `SPOOR_LOGS_TOKEN`, `SPOOR_TRACES_TOKEN` | `*.bearer_token` (keep tokens out of files) |
 | `SPOOR_METRICS_USER` / `_PASSWORD`, `SPOOR_LOGS_USER` / `_PASSWORD`, `SPOOR_TRACES_USER` / `_PASSWORD` | `*.username`, `*.password` (HTTP Basic auth; ignored when a bearer token is set) |
+| `SPOOR_METRICS_TYPE`, `SPOOR_LOGS_TYPE`, `SPOOR_TRACES_TYPE` | `*.type` (and that backend's defaults) |
+| `NEW_RELIC_API_KEY` or `SPOOR_NEWRELIC_API_KEY` | `newrelic.api_key` (a User key, `NRAK-…`) |
+| `NEW_RELIC_ACCOUNT_ID` or `SPOOR_NEWRELIC_ACCOUNT_ID`, `SPOOR_NEWRELIC_REGION` | `newrelic.account_id`, `newrelic.region` |
 | `SPOOR_REPORT_THRESHOLD` | `scoring.report_threshold` |
 | `SPOOR_HTTP_TOKEN` | `serve --auth-token`: bearer token clients must send to the HTTP server |
-| `SPOOR_LOG_FORMAT`, `SPOOR_LOG_LEVEL` | `serve --log-format` (`text`, `json`), `--log-level` |
+| `SPOOR_LOG_FORMAT`, `SPOOR_LOG_LEVEL` | `serve --log-format` (`text`, `json`), `--log-level`; `--log-level debug` on any command logs every backend query |
 
 **A backend you don't run:** set its URL to an empty string (`traces: {url: ""}`). Coverage then reports it as
 `not configured` and the other signals still answer. (A backend that is configured but unreachable is reported as

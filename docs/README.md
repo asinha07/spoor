@@ -4,6 +4,7 @@
 | --- | --- |
 | [Getting started](getting-started.md) | Install, try it on synthetic incidents, point it at your backends, connect an agent |
 | [Production](production.md) | Kubernetes, Docker, systemd, security, sizing, monitoring, upgrades |
+| [Backends](backends.md) | VictoriaMetrics stack, Prometheus, Loki, Tempo, New Relic: setup and what differs |
 | [Configuration](configuration.md) | Every option, environment variables, recipes for common setups |
 | [Tools](tools.md) | The four MCP tools, their inputs and the response format |
 | [Architecture](architecture.md) | Components, request flow, design principles |
@@ -12,6 +13,7 @@
 | [Comparison](comparison.md) | Spoor vs. raw query servers, vendor features, investigation agents |
 | [Troubleshooting](troubleshooting.md) | Coverage errors, missing services, wrong answers, client setup |
 | [FAQ](faq.md) | Short answers |
+| [Roadmap](roadmap.md) | What comes next, and what is out of scope |
 
 Commands in these docs assume `spoor` is on your `PATH` (see [Getting started](getting-started.md#1-install)).
 

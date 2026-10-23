@@ -118,7 +118,7 @@ service names, and to check that all three signals arrive before trusting an emp
 | `findings` | array | Ranked, highest score first. Empty when nothing changed. |
 | `steady_errors` | array, optional | Up to 3 services whose errors are not significantly above their usual level. Not a cause unless nothing else changed. See below. |
 | `truncated` | int | Findings removed to fit `budget_tokens`. Raise the budget or narrow `service` to see them. |
-| `coverage` | object | Per signal: `ok`, a no-data note, a no-baseline note, `partial (…)`, `not configured`, `error: …`, or a blind-spot note such as `no error lines: the error filter matched none of …`. Plus notes: `logs_lines` (error, total and unclassified line counts), `logs_patterns`, `logs_volume`, `scope`, `attribution`. See [how-it-works.md § Coverage](how-it-works.md#8-coverage). |
+| `coverage` | object | Per signal: `ok`, a no-data note, a no-baseline note, `partial (…)`, `not configured`, `error: …`, or a blind-spot note such as `no error lines: the error filter matched none of …`. Plus notes: `logs_lines` (error, total and unclassified line counts), `logs_patterns`, `logs_volume`, `logs_sample`, `traces_sample`, `traces_held_back`, `scope`, `attribution`. See [how-it-works.md § Coverage](how-it-works.md#8-coverage). |
 
 ### Finding
 

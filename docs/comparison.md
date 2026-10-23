@@ -56,12 +56,13 @@ an alert fires, an agent asks Spoor what changed in that window.
 | Cross-signal (metrics + logs + traces) | Yes | One signal per server | Yes | Via its tools |
 | Cause vs. echo from traces | Yes | No (agent must do it) | Varies | Via reasoning |
 | Self-hosted, open source | Yes, Apache-2.0 | Yes | No | Some |
-| Backends | VictoriaMetrics stack (Prometheus / Loki / Tempo planned) | Their own | Their own | Many |
+| Backends | VictoriaMetrics stack, Prometheus, Loki, Tempo, New Relic | Their own | Their own | Many |
 
 ## When Spoor is not the right tool
 
 - You don't have traces: Spoor still ranks metric and log changes, but cannot separate causes from echoes.
 - You need continuous alerting: use an anomaly detector or alert rules.
-- You are not on the VictoriaMetrics stack yet: adapters for Prometheus, Loki and Tempo are planned, not shipped.
+- Your telemetry is in Datadog, Elasticsearch or another backend Spoor does not read yet (see the
+  [roadmap](roadmap.md)).
 - The question is not about a change ("why has this always been slow?"): Spoor compares against a baseline, so a
   problem that was already there looks normal (it will show under `steady_errors` if it logs errors).

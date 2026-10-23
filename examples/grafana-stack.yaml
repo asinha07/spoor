@@ -1,0 +1,19 @@
+# Spoor on the Grafana stack: Prometheus (or Mimir), Loki and Tempo.
+# Check it with `spoor doctor --config grafana-stack.yaml --since 15m`.
+metrics:
+  type: prometheus
+  url: http://prometheus:9090          # Mimir: http://mimir:8080/prometheus
+logs:
+  type: loki
+  url: http://loki:3100
+  service_field: service_name          # the stream label holding the service
+  severity_fields: [detected_level, level]
+traces:
+  type: tempo
+  url: http://tempo:3200
+# Evidence links through Grafana Explore (Loki and Tempo have no UI of their own).
+grafana:
+  url: https://grafana.example.com
+  metrics_datasource: {uid: prometheus, type: prometheus}
+  logs_datasource: {uid: loki, type: loki}
+  traces_datasource: {uid: tempo, type: tempo}

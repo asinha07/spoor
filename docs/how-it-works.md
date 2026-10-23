@@ -212,7 +212,10 @@ And notes:
 | `logs_lines` | Error lines and total lines in scope, the share with none of the `severity_fields`, and lines with no service field |
 | `logs_patterns` | A service had more than 200 distinct error patterns; says how many possible new errors were checked against the full baseline (or that none needed checking) |
 | `logs_volume` | Line totals failed; error counts still work, but error share and blind-spot checks are skipped |
-| `scope` | An all-services scan hit `max_services` |
+| `logs_sample` | Loki refused a grouping query for too many series, or New Relic returned its 5,000-message limit; patterns for the named services come from a sample, counts are exact |
+| `traces_sample` | Span statistics or attribution come from a sample of traces (Tempo, New Relic) |
+| `traces_held_back` | New Relic: span-level changes not reported because the service's own metrics did not agree (spans are sampled with a bias to slow and failed requests) |
+| `scope` | An all-services scan hit `max_services`; says whether the services were picked by change (New Relic) or alphabetically |
 | `attribution` | Attribution failed; findings are not cause/echo labelled |
 
 When 30% or more of log lines carry no severity field, or no service field, the summary says so too.
@@ -244,4 +247,11 @@ be told apart from words; add `redact` rules for them.
   small queries); logs are batched. Pass `service` when you know it.
 - A brand-new span name that fails from its first appearance is not scored by the span scorer (metrics, logs and
   attribution still catch it).
-- All-services scans visit at most `max_services` services, alphabetically.
+- All-services scans visit at most `max_services` services for metrics and traces: the most changed ones on New
+  Relic, which can rank every service in two queries, and the first alphabetically elsewhere.
+- A span p95 is compared only with at least 20 spans in the window and the baseline: below that it is the slowest
+  call, not a percentile.
+- Tempo statistics come from up to 500 sampled traces per service and range, so rare failures on busy services can
+  be missed. New Relic spans are sampled by its agents with a bias towards slow and failed requests, so span-level
+  changes there are reported only when the service's own metrics agree. See [backends](backends.md).
+- On Loki, lines without a service label cannot be counted (every LogQL query needs a stream selector).

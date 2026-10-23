@@ -46,7 +46,8 @@ make it-reset && make it   # integration tests against real backends (Docker)
 
 ## Good first issues
 
-- Prometheus, Loki and Tempo adapters
+- New backends (Datadog, Elasticsearch/OpenSearch): implement `LogStore`/`TraceStore` in `internal/digest` and a
+  client in `internal/backend`; see `store_loki.go` and `store_tempo.go` for the pattern
 - More log-redaction rules
 - Grafana Explore links as an alternative to VMUI
 - Scoring for brand-new span names that fail from their first appearance

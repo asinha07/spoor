@@ -26,9 +26,9 @@ flowchart LR
     end
 
     subgraph Backends["Your backends (read-only)"]
-        VM[(VictoriaMetrics<br/>MetricsQL)]
-        VL[(VictoriaLogs<br/>LogsQL)]
-        VT[(VictoriaTraces<br/>LogsQL over spans)]
+        VM[(Metrics<br/>VictoriaMetrics, Prometheus: PromQL<br/>New Relic: NRQL)]
+        VL[(Logs<br/>VictoriaLogs: LogsQL, Loki: LogQL<br/>New Relic: NRQL)]
+        VT[(Traces<br/>VictoriaTraces: LogsQL, Tempo: TraceQL<br/>New Relic: NRQL)]
     end
 
     A1 & A2 -->|MCP tools| T
@@ -51,13 +51,13 @@ flowchart LR
 | --- | --- |
 | `cmd/spoor` | Entry point. `serve` (MCP over stdio or HTTP), the CLI commands, which call the same engine, and `doctor`, which checks what Spoor can see in your backends. |
 | `internal/server` | MCP tool definitions and their JSON schemas, server instructions, HTTP handler with bearer-token auth, `/healthz`, `/metrics`, structured tool-call logs. |
-| `internal/digest` | The engine. One scorer per signal, attribution, ranking, steady errors, redaction, the token budgeter and `doctor`. Pure functions over backend responses, so it is deterministic and testable from recordings. |
-| `internal/backend` | Thin HTTP clients for VictoriaMetrics (`/api/v1/query`, `/api/v1/query_range`, label values) and LogsQL (`/select/logsql/query`), used for both VictoriaLogs and VictoriaTraces. Only query paths are allowed. |
+| `internal/digest` | The engine. One scorer per signal, attribution, ranking, steady errors, redaction, the token budgeter and `doctor`. The log and span scorers talk to two interfaces, `LogStore` and `TraceStore`, implemented once per backend (`sources.go` for VictoriaLogs/VictoriaTraces, `store_loki.go`, `store_tempo.go`, `store_newrelic.go`); scoring and attribution are shared. Deterministic and testable from recordings. |
+| `internal/backend` | Thin HTTP clients: the Prometheus query API (VictoriaMetrics, Prometheus), LogsQL (VictoriaLogs, VictoriaTraces), Loki, Tempo and New Relic NerdGraph (read-only `nrql` queries only). Only query paths are allowed. |
 | `internal/window` | Parses `since` / `until` / `baseline` into a window, a baseline range and its sub-windows. |
 | `internal/config` | YAML + environment configuration. Every query is a template, so naming differences are a config change, not a code change. Unknown keys are rejected. |
-| `internal/links` | Builds VMUI evidence links for each finding. |
+| `internal/links` | Builds evidence links: VMUI, the Prometheus expression browser, New Relic's query builder or Grafana Explore. |
 | `internal/telemetry` | Spoor's own Prometheus metrics. |
-| `internal/gen`, `cmd/spoorgen` | Synthetic incident generator with ground truth (six scenarios), used by tests, demos and the benchmark. |
+| `internal/gen`, `cmd/spoorgen` | Synthetic incident generator with ground truth (six scenarios), used by tests, demos and the benchmark. Writes to the VictoriaMetrics stack or, for `make it-grafana`, to Prometheus (remote write), Loki and Tempo. |
 | `internal/replay`, `internal/cases` | Record/replay of backend responses for offline golden tests. |
 
 ## Request flow

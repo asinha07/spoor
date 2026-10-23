@@ -1,0 +1,11 @@
+# Spoor on New Relic: APM metrics (Transaction), logs (Log) and spans (Span).
+# Put the User API key in the environment: export NEW_RELIC_API_KEY=NRAK-...
+# Check it with `spoor doctor --config newrelic.yaml --since 15m`.
+metrics: {type: newrelic}
+logs:    {type: newrelic}
+traces:  {type: newrelic}
+newrelic:
+  account_id: 1234567                  # or NEW_RELIC_ACCOUNT_ID
+  region: us                           # or eu
+# More services than this are ranked by how much they changed first.
+max_services: 25

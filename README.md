@@ -8,10 +8,10 @@
 
 Website: **[telespoor.com](https://telespoor.com)**
 
-Spoor is an open-source [MCP](https://modelcontextprotocol.io) server and CLI for the VictoriaMetrics observability
-stack (VictoriaMetrics, VictoriaLogs, VictoriaTraces). When something breaks, an agent asks Spoor *"what changed in
-the last 30 minutes?"* and gets back a short, ranked answer across metrics, logs and traces, with the service where
-the failure **started** at the top and its echoes in other services labelled as such.
+Spoor is an open-source [MCP](https://modelcontextprotocol.io) server and CLI for your observability backends:
+the VictoriaMetrics stack, Prometheus, Loki, Tempo and New Relic. When something breaks, an agent asks Spoor *"what
+changed in the last 30 minutes?"* and gets back a short, ranked answer across metrics, logs and traces, with the
+service where the failure **started** at the top and its echoes in other services labelled as such.
 
 > *Spoor* (n.): the track or trail left by an animal. Spoor follows the trail a failure leaves in your telemetry back
 > to where it started.
@@ -113,6 +113,25 @@ failing in the shop. What changed, and where did it start?"*
 On your own backends, start with `spoor doctor --since 15m`: it checks what Spoor can see and suggests config.
 Other clients, Grafana-only access and the rest: **[Getting started](docs/getting-started.md)**.
 
+### Backends
+
+Each signal picks its backend with `type:`, and you can mix them:
+
+| | Metrics | Logs | Traces |
+| --- | --- | --- | --- |
+| VictoriaMetrics stack | VictoriaMetrics | VictoriaLogs | VictoriaTraces |
+| Grafana stack | Prometheus, Mimir, Thanos | Loki | Tempo |
+| New Relic | Transaction events (NRQL) | Log events | Span events |
+
+```yaml
+metrics: {type: prometheus, url: http://prometheus:9090}
+logs:    {type: loki, url: http://loki:3100}
+traces:  {type: tempo, url: http://tempo:3200}
+```
+
+Setup and what differs per backend (Tempo statistics are sampled; New Relic span changes need the service's metrics to
+agree): **[Backends](docs/backends.md)**.
+
 ## Tools
 
 | Tool | Returns |
@@ -130,9 +149,9 @@ Full reference: [docs/tools.md](docs/tools.md).
 ```mermaid
 flowchart LR
     Agent[AI agent / CLI] -->|MCP| S[Spoor]
-    S -->|MetricsQL| VM[(VictoriaMetrics)]
-    S -->|LogsQL| VL[(VictoriaLogs)]
-    S -->|LogsQL| VT[(VictoriaTraces)]
+    S -->|"PromQL / NRQL"| M[(VictoriaMetrics, Prometheus, New Relic)]
+    S -->|"LogsQL / LogQL / NRQL"| L[(VictoriaLogs, Loki, New Relic)]
+    S -->|"LogsQL / TraceQL / NRQL"| T[(VictoriaTraces, Tempo, New Relic)]
     S -->|"ranked digest ≤ budget"| Agent
 ```
 
@@ -165,6 +184,7 @@ finding "ad: CPU up 0.07 → 3.97 cores" (192 tokens). Reproduce it: [`deploy/de
 | --- | --- |
 | [Getting started](docs/getting-started.md) | Install, try, connect an agent |
 | [Production](docs/production.md) | Kubernetes, Docker, systemd, security, monitoring |
+| [Backends](docs/backends.md) | VictoriaMetrics stack, Prometheus, Loki, Tempo, New Relic |
 | [Configuration](docs/configuration.md) | Every option and recipes for common setups |
 | [Tools](docs/tools.md) | Inputs and response format |
 | [Architecture](docs/architecture.md) · [How it works](docs/how-it-works.md) | Design and scoring |
@@ -175,8 +195,9 @@ finding "ad: CPU up 0.07 → 3.97 cores" (192 tokens). Reproduce it: [`deploy/de
 
 Early (pre-1.0). Tool output fields may still change between minor versions; see the [changelog](CHANGELOG.md).
 
-- VictoriaMetrics stack only for now (directly or through Grafana's datasource proxy). Prometheus, Loki and Tempo
-  adapters are next.
+- The scoring was developed and benchmarked on the VictoriaMetrics stack. Prometheus, Loki and Tempo pass the same
+  scenario tests against real containers; New Relic was checked on one real account. Tempo statistics are sampled,
+  and New Relic span changes are reported only when service metrics agree; see [backends](docs/backends.md).
 - Cause/echo attribution needs traces; without them Spoor still ranks metric and log changes.
 - Attribution reads at most 50,000 span rows per read; on very busy systems a trace can be cut.
 - The benchmark uses synthetic incidents written by the author and one model; treat it as a first data point, and
@@ -187,11 +208,9 @@ More in [how-it-works.md](docs/how-it-works.md#known-limitations).
 
 ## Roadmap
 
-- Prometheus, Loki and Tempo adapters
-- "Since the last deploy" windows from Kubernetes rollouts
-- HolmesGPT toolset
-- Kafka consumer-group digest
-- Benchmark on the OpenTelemetry Demo and larger models
+Next: accuracy on labelled real incidents, "since the last deploy" windows, Datadog and Elasticsearch backends,
+exact Tempo statistics through TraceQL metrics. The full list, and what is deliberately out of scope:
+**[docs/roadmap.md](docs/roadmap.md)**.
 
 ## Contributing
 

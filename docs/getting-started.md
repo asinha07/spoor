@@ -95,6 +95,24 @@ export SPOOR_TRACES_URL=http://victoriatraces:10428
 spoor doctor --since 15m
 ```
 
+**Prometheus, Loki, Tempo or New Relic?** Set each signal's type; the defaults follow that backend:
+
+```sh
+# Grafana stack
+export SPOOR_METRICS_TYPE=prometheus SPOOR_METRICS_URL=http://prometheus:9090
+export SPOOR_LOGS_TYPE=loki SPOOR_LOGS_URL=http://loki:3100
+export SPOOR_TRACES_TYPE=tempo SPOOR_TRACES_URL=http://tempo:3200
+
+# New Relic (a User key, NRAK-...)
+export SPOOR_METRICS_TYPE=newrelic SPOOR_LOGS_TYPE=newrelic SPOOR_TRACES_TYPE=newrelic
+export NEW_RELIC_ACCOUNT_ID=1234567 NEW_RELIC_API_KEY=NRAK-...
+
+spoor doctor --since 15m
+```
+
+Ready-made configs: [`examples/grafana-stack.yaml`](../examples/grafana-stack.yaml),
+[`examples/newrelic.yaml`](../examples/newrelic.yaml). What differs per backend: [backends.md](backends.md).
+
 `doctor` reads a sample of each backend and reports what Spoor can and cannot see, then suggests a config. On
 logs that don't follow OpenTelemetry naming, expect something like:
 

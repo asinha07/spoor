@@ -2,17 +2,17 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.asinha07/spoor",
   "title": "Spoor",
-  "description": "What changed across metrics, logs and traces, and where it started (VictoriaMetrics stack).",
+  "description": "What changed across metrics, logs and traces, and where it started (Grafana, Victoria, New Relic).",
   "websiteUrl": "https://telespoor.com",
   "repository": {
     "url": "https://github.com/asinha07/spoor",
     "source": "github"
   },
-  "version": "0.2.1",
+  "version": "0.3.0",
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/asinha07/spoor:0.2.1",
+      "identifier": "ghcr.io/asinha07/spoor:0.3.0",
       "transport": {
         "type": "stdio"
       },
@@ -24,33 +24,51 @@
       ],
       "environmentVariables": [
         {
+          "name": "SPOOR_METRICS_TYPE",
+          "description": "Backend for metrics: victoriametrics (default), prometheus or newrelic"
+        },
+        {
+          "name": "SPOOR_LOGS_TYPE",
+          "description": "Backend for logs: victorialogs (default), loki or newrelic"
+        },
+        {
+          "name": "SPOOR_TRACES_TYPE",
+          "description": "Backend for traces: victoriatraces (default), tempo or newrelic"
+        },
+        {
           "name": "SPOOR_METRICS_URL",
-          "description": "VictoriaMetrics URL as seen from the container, e.g. http://host.docker.internal:8428",
-          "isRequired": true
+          "description": "Metrics backend URL (VictoriaMetrics or Prometheus) as seen from the container, e.g. http://host.docker.internal:8428"
         },
         {
           "name": "SPOOR_LOGS_URL",
-          "description": "VictoriaLogs URL as seen from the container, e.g. http://host.docker.internal:9428",
-          "isRequired": true
+          "description": "Logs backend URL (VictoriaLogs or Loki) as seen from the container, e.g. http://host.docker.internal:9428"
         },
         {
           "name": "SPOOR_TRACES_URL",
-          "description": "VictoriaTraces URL as seen from the container, e.g. http://host.docker.internal:10428",
-          "isRequired": true
+          "description": "Traces backend URL (VictoriaTraces or Tempo) as seen from the container, e.g. http://host.docker.internal:10428"
         },
         {
           "name": "SPOOR_METRICS_TOKEN",
-          "description": "Bearer token for VictoriaMetrics, if it requires one",
+          "description": "Bearer token for the metrics backend, if it requires one",
           "isSecret": true
         },
         {
           "name": "SPOOR_LOGS_TOKEN",
-          "description": "Bearer token for VictoriaLogs, if it requires one",
+          "description": "Bearer token for the logs backend, if it requires one",
           "isSecret": true
         },
         {
           "name": "SPOOR_TRACES_TOKEN",
-          "description": "Bearer token for VictoriaTraces, if it requires one",
+          "description": "Bearer token for the traces backend, if it requires one",
+          "isSecret": true
+        },
+        {
+          "name": "NEW_RELIC_ACCOUNT_ID",
+          "description": "New Relic account ID, for signals of type newrelic"
+        },
+        {
+          "name": "NEW_RELIC_API_KEY",
+          "description": "New Relic User API key (NRAK-...), for signals of type newrelic",
           "isSecret": true
         }
       ]

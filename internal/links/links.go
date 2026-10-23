@@ -44,6 +44,10 @@ func Grafana(grafanaURL, uid, dsType, expr string, start, end time.Time) string 
 		return ""
 	}
 	q := map[string]any{"refId": "A", "expr": expr, "datasource": map[string]string{"uid": uid, "type": dsType}}
+	if dsType == "tempo" {
+		// Tempo's datasource takes a TraceQL query, not expr.
+		q = map[string]any{"refId": "A", "query": expr, "queryType": "traceql", "datasource": map[string]string{"uid": uid, "type": dsType}}
+	}
 	if dsType == "" {
 		q["datasource"] = map[string]string{"uid": uid}
 	}

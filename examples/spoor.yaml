@@ -2,6 +2,11 @@
 # Unknown keys are rejected. Run `spoor doctor --config this-file` to check it
 # against your backends; it suggests service and severity fields for your logs.
 # Query templates receive {{.Service}} (already quoted) and {{.Window}} (e.g. 30m).
+#
+# These are the defaults for the VictoriaMetrics stack. Each signal's `type`
+# (victoriametrics/prometheus/newrelic, victorialogs/loki/newrelic,
+# victoriatraces/tempo/newrelic) switches its defaults to fit that backend;
+# see docs/backends.md.
 
 timeout: 20s
 max_services: 25            # cap for all-services scans (metrics and traces are queried per service)
@@ -14,6 +19,14 @@ redact: []
 #  - regex: 'sess_[a-z]{12}'
 #    replace: '<SESSION>'
 
+# New Relic account for signals of type newrelic. Keep the User API key
+# (NRAK-...) in NEW_RELIC_API_KEY or SPOOR_NEWRELIC_API_KEY, not here.
+newrelic:
+  account_id: 0              # or NEW_RELIC_ACCOUNT_ID
+  api_key: ""
+  region: us                 # us or eu
+  url: ""                    # NerdGraph endpoint override (proxies, tests)
+
 # Evidence links open Grafana Explore instead of VMUI when a datasource is set.
 grafana:
   url: ""                    # e.g. https://grafana.example.com
@@ -22,6 +35,7 @@ grafana:
   traces_datasource: {uid: "", type: ""}
 
 metrics:
+  type: victoriametrics      # or prometheus (also Mimir, Thanos), newrelic; or SPOOR_METRICS_TYPE
   url: http://localhost:8428
   bearer_token: ""           # or SPOOR_METRICS_TOKEN
   username: ""               # HTTP Basic auth, used when no bearer token is set
@@ -43,18 +57,21 @@ metrics:
       query: 'max(max_over_time(kafka_consumer_lag{service_name={{.Service}}}[{{.Window}}]))'
 
 logs:
+  type: victorialogs         # or loki, newrelic; or SPOOR_LOGS_TYPE
   url: http://localhost:9428
+  tenant: ""                 # Loki: X-Scope-OrgID
   bearer_token: ""
   username: ""
   password: ""
   ui_url: ""
-  service_field: service.name
+  service_field: service.name   # a label for Loki, an attribute for New Relic
   # Fields that may hold a log level. Spoor builds the error filter from them
   # (values err, error, fatal, crit, critical, alert, emerg, panic, severe) and
   # reports the share of lines that carry none of them.
   severity_fields: [severity_text]
-  # Replaces the filter built from severity_fields. Use it when some levels
-  # are only in the message text; `spoor doctor` suggests one.
+  # Replaces the filter built from severity_fields, in the backend's language
+  # (LogsQL, a LogQL pipeline, or an NRQL condition). Use it when some levels
+  # are only in the message text; `spoor doctor` suggests one for LogsQL.
   error_filter: ""
   # Replace tokens that mix letters and digits (order, cart, product IDs) with
   # <ID> before grouping error lines, so one error is one pattern.
@@ -72,7 +89,9 @@ logs:
   code_fields: [error_code, errorCode, error.code, code, exception.type, error.type]
 
 traces:
+  type: victoriatraces       # or tempo, newrelic; or SPOOR_TRACES_TYPE
   url: http://localhost:10428
+  tenant: ""                 # Tempo: X-Scope-OrgID
   bearer_token: ""
   username: ""
   password: ""
@@ -81,7 +100,7 @@ traces:
   name_field: name
   duration_field: duration   # nanoseconds
   start_field: start_time_unix_nano  # lets self time count parallel child calls once; "" to sum children
-  error_filter: 'status_code:=2'
+  error_filter: 'status_code:=2'   # Tempo: status = error; New Relic: error IS true
 
 scoring:
   report_threshold: 0.5      # 0.5 = robust z-score of 3

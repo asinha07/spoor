@@ -135,10 +135,14 @@ func (c httpClient) do(ctx context.Context, method, path, logQuery string, body 
 		if len(msg) > 300 {
 			msg = msg[:300] + "…"
 		}
-		if resp.StatusCode >= 500 || resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-			return nil, fmt.Errorf("%w: %s returned %d: %s", ErrUnavailable, path, resp.StatusCode, msg)
+		where := path
+		if where == "" {
+			where = c.name
 		}
-		return nil, fmt.Errorf("%s returned %d: %s", path, resp.StatusCode, msg)
+		if resp.StatusCode >= 500 || resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+			return nil, fmt.Errorf("%w: %s returned %d: %s", ErrUnavailable, where, resp.StatusCode, msg)
+		}
+		return nil, fmt.Errorf("%s returned %d: %s", where, resp.StatusCode, msg)
 	}
 	return out, nil
 }
