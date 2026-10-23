@@ -38,6 +38,50 @@ type Config struct {
 	// Grafana, when set, makes evidence links open Grafana Explore instead
 	// of VMUI.
 	Grafana GrafanaConfig `yaml:"grafana"`
+	// NewRelic holds the account and key used by any signal of type newrelic.
+	NewRelic NewRelicConfig `yaml:"newrelic"`
+}
+
+// Backend types, set per signal with `type:`.
+const (
+	TypeVictoriaMetrics = "victoriametrics"
+	TypePrometheus      = "prometheus" // also Mimir, Thanos, Cortex
+	TypeVictoriaLogs    = "victorialogs"
+	TypeLoki            = "loki"
+	TypeVictoriaTraces  = "victoriatraces"
+	TypeTempo           = "tempo"
+	TypeNewRelic        = "newrelic"
+)
+
+var validTypes = map[string][]string{
+	"metrics": {TypeVictoriaMetrics, TypePrometheus, TypeNewRelic},
+	"logs":    {TypeVictoriaLogs, TypeLoki, TypeNewRelic},
+	"traces":  {TypeVictoriaTraces, TypeTempo, TypeNewRelic},
+}
+
+// Types names the backend type of each signal.
+type Types struct{ Metrics, Logs, Traces string }
+
+// NewRelicConfig is the New Relic account Spoor reads through NerdGraph.
+type NewRelicConfig struct {
+	AccountID int64 `yaml:"account_id"` // or SPOOR_NEWRELIC_ACCOUNT_ID / NEW_RELIC_ACCOUNT_ID
+	// APIKey is a User API key (NRAK-...). Prefer the environment:
+	// SPOOR_NEWRELIC_API_KEY or NEW_RELIC_API_KEY.
+	APIKey string `yaml:"api_key"`
+	Region string `yaml:"region"` // us (default) or eu
+	// URL overrides the NerdGraph endpoint (tests, proxies).
+	URL string `yaml:"url"`
+}
+
+// Endpoint returns the NerdGraph URL for the configured region.
+func (n NewRelicConfig) Endpoint() string {
+	switch {
+	case n.URL != "":
+		return n.URL
+	case strings.EqualFold(n.Region, "eu"):
+		return "https://api.eu.newrelic.com/graphql"
+	}
+	return "https://api.newrelic.com/graphql"
 }
 
 // Rule is one regular-expression replacement (RE2 syntax).
@@ -63,6 +107,9 @@ type GrafanaDatasource struct {
 
 // Backend is the shared connection block of each backend.
 type Backend struct {
+	// Type selects the backend: see the Type* constants. Empty means the
+	// VictoriaMetrics stack.
+	Type        string `yaml:"type"`
 	URL         string `yaml:"url"`
 	BearerToken string `yaml:"bearer_token"`
 	// Username and Password enable HTTP Basic auth (e.g. Grafana's
@@ -71,6 +118,8 @@ type Backend struct {
 	Password string `yaml:"password"`
 	// UIURL is the base used for evidence links; defaults to URL.
 	UIURL string `yaml:"ui_url"`
+	// Tenant is sent as X-Scope-OrgID to multi-tenant Loki and Tempo.
+	Tenant string `yaml:"tenant"`
 }
 
 // MetricsConfig describes how to reach VictoriaMetrics and which queries to run.
@@ -124,13 +173,37 @@ type LogsConfig struct {
 // built from SeverityFields.
 const ErrorLevels = `(?i)^(err|error|fatal|crit|critical|alert|emerg|emergency|panic|severe)$`
 
-// EffectiveErrorFilter returns the LogsQL filter selecting error lines.
+// errorLevelWords are the level values treated as errors, for backends
+// whose filters are not regular expressions.
+var errorLevelWords = []string{"err", "error", "fatal", "crit", "critical", "alert", "emerg", "emergency", "panic", "severe"}
+
+// EffectiveErrorFilter returns the filter selecting error lines, in the
+// logs backend's query language: LogsQL, a LogQL pipeline, or an NRQL
+// condition.
 func (l LogsConfig) EffectiveErrorFilter() string {
 	if l.ErrorFilter != "" {
 		return l.ErrorFilter
 	}
 	if len(l.SeverityFields) == 0 {
 		return ""
+	}
+	switch l.Type {
+	case TypeLoki:
+		parts := make([]string, 0, len(l.SeverityFields))
+		for _, f := range l.SeverityFields {
+			parts = append(parts, LokiLabel(f)+`=~"(?i)(`+strings.Join(errorLevelWords, "|")+`)"`)
+		}
+		return "| " + strings.Join(parts, " or ")
+	case TypeNewRelic:
+		words := make([]string, len(errorLevelWords))
+		for i, w := range errorLevelWords {
+			words[i] = "'" + w + "'"
+		}
+		parts := make([]string, 0, len(l.SeverityFields))
+		for _, f := range l.SeverityFields {
+			parts = append(parts, "lower("+NRQLField(f)+") IN ("+strings.Join(words, ", ")+")")
+		}
+		return "(" + strings.Join(parts, " OR ") + ")"
 	}
 	parts := make([]string, 0, len(l.SeverityFields))
 	for _, f := range l.SeverityFields {
@@ -148,11 +221,54 @@ func (l LogsConfig) UnclassifiedFilter() string {
 	if len(l.SeverityFields) == 0 {
 		return ""
 	}
+	switch l.Type {
+	case TypeLoki:
+		// Loki 3 sets detected_level to "unknown" when it finds no level.
+		parts := make([]string, 0, len(l.SeverityFields))
+		for _, f := range l.SeverityFields {
+			parts = append(parts, `(`+LokiLabel(f)+`="" or `+LokiLabel(f)+`="unknown")`)
+		}
+		return "| " + strings.Join(parts, " and ")
+	case TypeNewRelic:
+		parts := make([]string, 0, len(l.SeverityFields))
+		for _, f := range l.SeverityFields {
+			parts = append(parts, NRQLField(f)+" IS NULL")
+		}
+		return strings.Join(parts, " AND ")
+	}
 	parts := make([]string, 0, len(l.SeverityFields))
 	for _, f := range l.SeverityFields {
 		parts = append(parts, "NOT "+quoteField(f)+":*")
 	}
 	return strings.Join(parts, " ")
+}
+
+// LokiLabel turns a field name into a LogQL label name: dots and other
+// characters become underscores, as Loki does for OTLP attributes.
+func LokiLabel(f string) string {
+	b := []byte(f)
+	for i, c := range b {
+		if !(c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z') {
+			b[i] = '_'
+		}
+	}
+	return string(b)
+}
+
+// NRQLField quotes an attribute name with backticks when it is not a plain
+// identifier (log.level, entity.name are fine; dashes and spaces are not).
+func NRQLField(f string) string {
+	for _, r := range f {
+		if !(r == '_' || r == '.' || r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z') {
+			return "`" + strings.ReplaceAll(f, "`", "") + "`"
+		}
+	}
+	return f
+}
+
+// NRQLString quotes s as an NRQL string literal.
+func NRQLString(s string) string {
+	return "'" + strings.ReplaceAll(strings.ReplaceAll(s, `\`, `\\`), "'", `\'`) + "'"
 }
 
 // IDNormalization reports whether built-in ID normalization is on.
@@ -197,9 +313,60 @@ type ScoringConfig struct {
 	MinSpans int `yaml:"min_spans"`
 }
 
-// Default returns the configuration used when no file is given. Query names
-// follow the OpenTelemetry semantic conventions as exported to Prometheus.
-func Default() Config {
+// Default returns the configuration used when no file is given: the
+// VictoriaMetrics stack, with query names following the OpenTelemetry
+// semantic conventions as exported to Prometheus.
+func Default() Config { return DefaultFor(Types{}) }
+
+// DefaultFor returns the defaults for the given backend types: URLs, field
+// names and queries that fit each backend out of the box.
+func DefaultFor(t Types) Config {
+	c := victoriaDefaults()
+	switch t.Metrics {
+	case TypePrometheus:
+		c.Metrics.Type = TypePrometheus
+		c.Metrics.URL = "http://localhost:9090"
+	case TypeNewRelic:
+		c.Metrics = MetricsConfig{
+			Backend:      Backend{Type: TypeNewRelic},
+			ServiceLabel: "appName",
+			RequestRate:  `SELECT rate(count(*), 1 second) FROM Transaction WHERE appName = {{.Service}}`,
+			ErrorRate:    `SELECT filter(count(*), WHERE error IS true) / count(*) FROM Transaction WHERE appName = {{.Service}}`,
+			LatencyP95:   `SELECT percentile(duration, 95) FROM Transaction WHERE appName = {{.Service}}`,
+		}
+	}
+	switch t.Logs {
+	case TypeLoki:
+		c.Logs.Type = TypeLoki
+		c.Logs.URL = "http://localhost:3100"
+		c.Logs.ServiceField = "service_name"
+		c.Logs.SeverityFields = []string{"detected_level", "level"}
+	case TypeNewRelic:
+		c.Logs.Backend = Backend{Type: TypeNewRelic}
+		c.Logs.ServiceField = "entity.name"
+		c.Logs.SeverityFields = []string{"level", "log.level"}
+	}
+	switch t.Traces {
+	case TypeTempo:
+		c.Traces = TracesConfig{
+			Backend:      Backend{Type: TypeTempo, URL: "http://localhost:3200"},
+			ServiceField: "resource.service.name",
+			NameField:    "name",
+			ErrorFilter:  "status = error",
+		}
+	case TypeNewRelic:
+		c.Traces = TracesConfig{
+			Backend:       Backend{Type: TypeNewRelic},
+			ServiceField:  "entity.name",
+			NameField:     "name",
+			DurationField: "duration.ms",
+			ErrorFilter:   "error IS true",
+		}
+	}
+	return c
+}
+
+func victoriaDefaults() Config {
 	return Config{
 		Timeout:     20 * time.Second,
 		MaxServices: 25,
@@ -243,12 +410,29 @@ func Default() Config {
 
 // Load reads path (optional; "" means defaults only) and applies environment overrides.
 func Load(path string) (Config, error) {
-	cfg := Default()
+	var b []byte
 	if path != "" {
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return cfg, fmt.Errorf("read config: %w", err)
+		var err error
+		if b, err = os.ReadFile(path); err != nil {
+			return Default(), fmt.Errorf("read config: %w", err)
 		}
+	}
+	// Each signal's type decides its defaults, so read the types first (from
+	// the file, then the environment) and start from those defaults.
+	var peek struct {
+		Metrics struct{ Type string } `yaml:"metrics"`
+		Logs    struct{ Type string } `yaml:"logs"`
+		Traces  struct{ Type string } `yaml:"traces"`
+	}
+	_ = yaml.Unmarshal(b, &peek)
+	types := Types{Metrics: peek.Metrics.Type, Logs: peek.Logs.Type, Traces: peek.Traces.Type}
+	for dst, key := range map[*string]string{&types.Metrics: "SPOOR_METRICS_TYPE", &types.Logs: "SPOOR_LOGS_TYPE", &types.Traces: "SPOOR_TRACES_TYPE"} {
+		if v := os.Getenv(key); v != "" {
+			*dst = v
+		}
+	}
+	cfg := DefaultFor(types)
+	if path != "" {
 		// Strict: an unknown key is almost always a typo that would otherwise
 		// fall back to a default without anyone noticing.
 		dec := yaml.NewDecoder(bytes.NewReader(b))
@@ -281,6 +465,21 @@ func applyEnv(cfg *Config) error {
 	set(&cfg.Logs.Password, "SPOOR_LOGS_PASSWORD")
 	set(&cfg.Traces.Username, "SPOOR_TRACES_USER")
 	set(&cfg.Traces.Password, "SPOOR_TRACES_PASSWORD")
+	set(&cfg.Metrics.Type, "SPOOR_METRICS_TYPE")
+	set(&cfg.Logs.Type, "SPOOR_LOGS_TYPE")
+	set(&cfg.Traces.Type, "SPOOR_TRACES_TYPE")
+	set(&cfg.NewRelic.APIKey, "NEW_RELIC_API_KEY")
+	set(&cfg.NewRelic.APIKey, "SPOOR_NEWRELIC_API_KEY")
+	set(&cfg.NewRelic.Region, "SPOOR_NEWRELIC_REGION")
+	for _, key := range []string{"NEW_RELIC_ACCOUNT_ID", "SPOOR_NEWRELIC_ACCOUNT_ID"} {
+		if v := os.Getenv(key); v != "" {
+			id, err := strconv.ParseInt(v, 10, 64)
+			if err != nil {
+				return fmt.Errorf("%s: want a numeric account ID, got %q", key, v)
+			}
+			cfg.NewRelic.AccountID = id
+		}
+	}
 	if v := os.Getenv("SPOOR_REPORT_THRESHOLD"); v != "" {
 		f, err := strconv.ParseFloat(v, 64)
 		if err != nil {
@@ -291,8 +490,44 @@ func applyEnv(cfg *Config) error {
 	return nil
 }
 
+// Types returns each signal's backend type, with empty meaning the
+// VictoriaMetrics stack.
+func (c Config) Types() Types {
+	t := Types{Metrics: c.Metrics.Type, Logs: c.Logs.Type, Traces: c.Traces.Type}
+	if t.Metrics == "" {
+		t.Metrics = TypeVictoriaMetrics
+	}
+	if t.Logs == "" {
+		t.Logs = TypeVictoriaLogs
+	}
+	if t.Traces == "" {
+		t.Traces = TypeVictoriaTraces
+	}
+	return t
+}
+
+// UsesNewRelic reports whether any signal reads from New Relic.
+func (c Config) UsesNewRelic() bool {
+	return c.Metrics.Type == TypeNewRelic || c.Logs.Type == TypeNewRelic || c.Traces.Type == TypeNewRelic
+}
+
 // Validate checks templates parse and thresholds are sane.
 func (c Config) Validate() error {
+	for sig, typ := range map[string]string{"metrics": c.Metrics.Type, "logs": c.Logs.Type, "traces": c.Traces.Type} {
+		if typ == "" {
+			continue
+		}
+		ok := false
+		for _, v := range validTypes[sig] {
+			ok = ok || v == typ
+		}
+		if !ok {
+			return fmt.Errorf("%s.type %q: want one of %s", sig, typ, strings.Join(validTypes[sig], ", "))
+		}
+	}
+	if c.UsesNewRelic() && c.NewRelic.AccountID == 0 {
+		return fmt.Errorf("newrelic.account_id is required when a signal has type newrelic (or set NEW_RELIC_ACCOUNT_ID)")
+	}
 	for name, q := range map[string]string{
 		"metrics.request_rate": c.Metrics.RequestRate,
 		"metrics.error_rate":   c.Metrics.ErrorRate,
@@ -326,16 +561,29 @@ func (c Config) Validate() error {
 			}
 		}
 	}
-	if c.Logs.URL != "" && c.Logs.EffectiveErrorFilter() == "" {
+	if (c.Logs.URL != "" || c.Logs.Type == TypeNewRelic) && c.Logs.EffectiveErrorFilter() == "" {
 		return fmt.Errorf("logs: set severity_fields or error_filter, or Spoor cannot find error lines")
 	}
 	return nil
+}
+
+// Render fills a metrics query template in the configured backend's
+// language: the service is quoted as a PromQL string, or an NRQL one.
+func (m MetricsConfig) Render(tmpl, service string, window time.Duration) (string, error) {
+	if m.Type == TypeNewRelic {
+		return render(tmpl, NRQLString(service), window)
+	}
+	return Render(tmpl, service, window)
 }
 
 // Render fills a query template with a service name and a window. The service
 // value is emitted as a quoted MetricsQL string literal, so callers write
 // {service_name={{.Service}}} without adding quotes themselves.
 func Render(tmpl, service string, window time.Duration) (string, error) {
+	return render(tmpl, strconv.Quote(service), window)
+}
+
+func render(tmpl, quoted string, window time.Duration) (string, error) {
 	t, err := template.New("q").Option("missingkey=error").Parse(tmpl)
 	if err != nil {
 		return "", err
@@ -344,7 +592,7 @@ func Render(tmpl, service string, window time.Duration) (string, error) {
 	err = t.Execute(&buf, struct {
 		Service string
 		Window  string
-	}{Service: strconv.Quote(service), Window: PromDuration(window)})
+	}{Service: quoted, Window: PromDuration(window)})
 	return buf.String(), err
 }
 

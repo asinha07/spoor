@@ -6,6 +6,7 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -27,6 +28,13 @@ var AllowedPaths = []string{
 	"/api/v1/query_range",
 	"/api/v1/label/",
 	"/select/logsql/query",
+	"/loki/api/v1/query",
+	"/loki/api/v1/query_range",
+	"/loki/api/v1/label/",
+	"/api/search",
+	"/api/v2/search/tag/",
+	"/api/v2/traces/",
+	"/graphql", // New Relic NerdGraph: NRQL queries only, never mutations
 }
 
 // ErrUnavailable wraps transport-level failures so callers can mark a
@@ -39,7 +47,9 @@ type httpClient struct {
 	token string
 	user  string // HTTP Basic auth, used when token is empty
 	pass  string
-	hc    *http.Client
+	// header holds extra request headers (e.g. New Relic's API-Key).
+	header map[string]string
+	hc     *http.Client
 }
 
 var (
@@ -62,15 +72,37 @@ func newHTTP(base, token string, timeout time.Duration) httpClient {
 
 // post sends a form-encoded POST and returns the body.
 func (c httpClient) post(ctx context.Context, path string, form url.Values) ([]byte, error) {
+	return c.do(ctx, http.MethodPost, path, form.Get("query"), strings.NewReader(form.Encode()), "application/x-www-form-urlencoded")
+}
+
+// get sends a GET with query parameters and returns the body.
+func (c httpClient) get(ctx context.Context, path string, params url.Values) ([]byte, error) {
+	if len(params) > 0 {
+		path += "?" + params.Encode()
+	}
+	return c.do(ctx, http.MethodGet, path, params.Get("query")+params.Get("q"), nil, "")
+}
+
+// postJSON sends a JSON body and returns the response body.
+func (c httpClient) postJSON(ctx context.Context, path string, body []byte, logQuery string) ([]byte, error) {
+	return c.do(ctx, http.MethodPost, path, logQuery, bytes.NewReader(body), "application/json")
+}
+
+func (c httpClient) do(ctx context.Context, method, path, logQuery string, body io.Reader, ctype string) ([]byte, error) {
 	if c.base == "" {
 		return nil, fmt.Errorf("%w: no URL configured", ErrUnavailable)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+path, strings.NewReader(form.Encode()))
+	req, err := http.NewRequestWithContext(ctx, method, c.base+path, body)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if ctype != "" {
+		req.Header.Set("Content-Type", ctype)
+	}
 	req.Header.Set("User-Agent", "spoor")
+	for k, v := range c.header {
+		req.Header.Set(k, v)
+	}
 	switch {
 	case c.token != "":
 		req.Header.Set("Authorization", "Bearer "+c.token)
@@ -84,7 +116,7 @@ func (c httpClient) post(ctx context.Context, path string, form url.Values) ([]b
 	if err != nil {
 		telemetry.BackendRequest(c.name, "error", time.Since(started))
 		slog.Debug("backend request failed", slog.String("backend", c.name), slog.String("path", path),
-			slog.String("query", form.Get("query")), slog.Duration("duration", time.Since(started)), slog.String("error", err.Error()))
+			slog.String("query", logQuery), slog.Duration("duration", time.Since(started)), slog.String("error", err.Error()))
 		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
 	defer func() { _ = resp.Body.Close() }() // read-only body; nothing to recover
@@ -92,14 +124,14 @@ func (c httpClient) post(ctx context.Context, path string, form url.Values) ([]b
 		d := time.Since(started)
 		telemetry.BackendRequest(c.name, statusLabel(resp.StatusCode), d)
 		slog.Debug("backend request", slog.String("backend", c.name), slog.String("path", path),
-			slog.String("query", form.Get("query")), slog.Int("status", resp.StatusCode), slog.Duration("duration", d))
+			slog.String("query", logQuery), slog.Int("status", resp.StatusCode), slog.Duration("duration", d))
 	}()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
+	out, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
 	if err != nil {
 		return nil, fmt.Errorf("%w: reading %s: %v", ErrUnavailable, path, err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		msg := strings.TrimSpace(string(body))
+		msg := strings.TrimSpace(string(out))
 		if len(msg) > 300 {
 			msg = msg[:300] + "…"
 		}
@@ -108,7 +140,7 @@ func (c httpClient) post(ctx context.Context, path string, form url.Values) ([]b
 		}
 		return nil, fmt.Errorf("%s returned %d: %s", path, resp.StatusCode, msg)
 	}
-	return body, nil
+	return out, nil
 }
 
 func statusLabel(code int) string {

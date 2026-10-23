@@ -115,8 +115,10 @@ func (m *Metrics) Range(ctx context.Context, q string, start, end time.Time, ste
 
 // LabelValues lists values of label seen in [start, end].
 func (m *Metrics) LabelValues(ctx context.Context, label string, start, end time.Time) ([]string, error) {
-	form := url.Values{"start": {strconv.FormatInt(start.Unix(), 10)}, "end": {strconv.FormatInt(end.Unix(), 10)}}
-	body, err := m.http.post(ctx, "/api/v1/label/"+url.PathEscape(label)+"/values", form)
+	// GET: Prometheus serves label values only over GET (VictoriaMetrics
+	// accepts both).
+	params := url.Values{"start": {strconv.FormatInt(start.Unix(), 10)}, "end": {strconv.FormatInt(end.Unix(), 10)}}
+	body, err := m.http.get(ctx, "/api/v1/label/"+url.PathEscape(label)+"/values", params)
 	if err != nil {
 		return nil, err
 	}

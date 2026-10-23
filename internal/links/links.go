@@ -3,6 +3,7 @@
 package links
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"net/url"
 	"strings"
@@ -88,3 +89,36 @@ func itoa(n int64) string {
 	}
 	return string(b[i:])
 }
+
+// Prometheus returns a link to the Prometheus expression browser.
+func Prometheus(base, query string, start, end time.Time) string {
+	if base == "" {
+		return ""
+	}
+	v := url.Values{}
+	v.Set("g0.expr", query)
+	v.Set("g0.tab", "0")
+	v.Set("g0.range_input", durationInput(end.Sub(start)))
+	v.Set("g0.end_input", end.UTC().Format("2006-01-02 15:04:05"))
+	return strings.TrimRight(base, "/") + "/graph?" + v.Encode()
+}
+
+// NewRelic returns a New Relic query builder link that runs an NRQL query
+// over [start, end] in one account.
+func NewRelic(accountID int64, region, nrql string, start, end time.Time) string {
+	if accountID == 0 || nrql == "" {
+		return ""
+	}
+	host := "https://one.newrelic.com"
+	if strings.EqualFold(region, "eu") {
+		host = "https://one.eu.newrelic.com"
+	}
+	q := nrql + " SINCE " + itoa(start.UnixMilli()) + " UNTIL " + itoa(end.UnixMilli())
+	pane, _ := json.Marshal(map[string]any{"nerdletId": "data-exploration.query-builder", "initialActiveInterface": "nrqlEditor",
+		"initialNrqlValue": q, "initialAccountId": accountID})
+	v := url.Values{}
+	v.Set("pane", base64URL(pane))
+	return host + "/launcher/data-exploration.query-builder?" + v.Encode()
+}
+
+func base64URL(b []byte) string { return base64.StdEncoding.EncodeToString(b) }

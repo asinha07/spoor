@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 1m
+storage:
+  tsdb:
+    # Accept samples written long after their timestamp (test data is
+    # generated hours in the past).
+    out_of_order_time_window: 100d

@@ -23,12 +23,15 @@ func (s HTTPSink) client() *http.Client {
 	return &http.Client{Timeout: 2 * time.Minute}
 }
 
-func (s HTTPSink) post(ctx context.Context, url, contentType string, body []byte) error {
+func (s HTTPSink) post(ctx context.Context, url, contentType string, body []byte, opts ...func(*http.Request)) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", contentType)
+	for _, o := range opts {
+		o(req)
+	}
 	resp, err := s.client().Do(req)
 	if err != nil {
 		return err

@@ -222,7 +222,7 @@ func TestReadOnly(t *testing.T) {
 	}
 	for p := range paths {
 		method, path, _ := strings.Cut(p, " ")
-		if method != http.MethodPost {
+		if method != http.MethodPost && method != http.MethodGet {
 			t.Errorf("unexpected method %s", p)
 		}
 		ok := false

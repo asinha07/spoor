@@ -1,0 +1,23 @@
+# Empty Prometheus, Loki and Tempo for the Grafana-stack integration tests
+# (`make it-grafana`). Configured to accept data hours in the past, so the
+# scenario generator can write whole incidents at once.
+services:
+  prometheus:
+    image: quay.io/prometheus/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-remote-write-receiver
+      - --storage.tsdb.retention.time=100y
+    volumes: ["./grafana/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["9090:9090"]
+  loki:
+    image: grafana/loki:3.5.3
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes: ["./grafana/loki.yaml:/etc/loki/config.yaml:ro"]
+    ports: ["3100:3100"]
+  tempo:
+    image: grafana/tempo:2.8.2
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes: ["./grafana/tempo.yaml:/etc/tempo.yaml:ro"]
+    ports: ["3200:3200", "4318:4318"]

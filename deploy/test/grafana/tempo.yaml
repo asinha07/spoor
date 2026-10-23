@@ -1,0 +1,53 @@
+stream_over_http_enabled: true
+server:
+  http_listen_port: 3200
+  log_level: warn
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        http:
+          endpoint: 0.0.0.0:4318
+# Test data is written hours in the past, so flush it to storage quickly and
+# serve every time-ranged query from storage.
+ingester:
+  max_block_duration: 20s
+  complete_block_timeout: 20s
+  flush_check_period: 5s
+query_frontend:
+  search:
+    query_backend_after: 0s
+    query_ingesters_until: 0s
+  metrics:
+    query_backend_after: 0s
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /var/tempo/wal
+      # Keep the spans' own times for block ranges (default: ingestion time
+      # for spans more than 2m old).
+      ingestion_time_range_slack: 1000h
+    local:
+      path: /var/tempo/blocks
+    blocklist_poll: 5s
+metrics_generator:
+  # Accept old test spans; real spans arrive within seconds.
+  metrics_ingestion_time_range_slack: 1000h
+  storage:
+    path: /var/tempo/generator/wal
+  traces_storage:
+    path: /var/tempo/generator/traces
+  processor:
+    local_blocks:
+      filter_server_spans: false
+      flush_to_storage: true
+overrides:
+  defaults:
+    # The test writes hours of traces at once.
+    ingestion:
+      max_traces_per_user: 1000000
+      rate_limit_bytes: 500000000
+      burst_size_bytes: 500000000
+    metrics_generator:
+      processors: [local-blocks]

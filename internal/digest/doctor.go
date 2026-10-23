@@ -69,8 +69,8 @@ func (e *Engine) Doctor(ctx context.Context, since, until string) (DoctorReport,
 			sample = sample[:3]
 		}
 		for _, svc := range sample {
-			q, _ := config.Render(e.cfg.Metrics.RequestRate, svc, r.End.Sub(r.Start))
-			if s, err := e.metrics.Instant(ctx, q, r.End); err == nil && len(s) > 0 {
+			q, _ := e.cfg.Metrics.Render(e.cfg.Metrics.RequestRate, svc, r.End.Sub(r.Start))
+			if s, err := e.metricInstant(ctx, q, r.End, r.End.Sub(r.Start)); err == nil && len(s) > 0 {
 				answered++
 			}
 		}

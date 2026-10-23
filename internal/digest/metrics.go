@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/asinha07/spoor/internal/backend"
-	"github.com/asinha07/spoor/internal/config"
 	"github.com/asinha07/spoor/internal/window"
 )
 
@@ -61,11 +60,11 @@ func (e *Engine) scoreMetrics(ctx context.Context, svc string, spec window.Spec)
 		if ms.needsLoad && !loadOK {
 			continue
 		}
-		q, err := config.Render(ms.tmpl, svc, w)
+		q, err := e.cfg.Metrics.Render(ms.tmpl, svc, w)
 		if err != nil {
 			return nil, err
 		}
-		cur, has, err := e.instant(ctx, q, spec.Window.End)
+		cur, has, err := e.instant(ctx, q, spec.Window.End, w)
 		if err != nil {
 			lastErr = err
 			continue
@@ -140,8 +139,30 @@ func (e *Engine) scoreMetrics(ctx context.Context, svc string, spec window.Spec)
 	return out, nil
 }
 
-func (e *Engine) instant(ctx context.Context, q string, at time.Time) (float64, bool, error) {
-	s, err := e.metrics.Instant(ctx, q, at)
+// windowedMetrics is implemented by metrics sources whose queries carry no
+// lookback of their own (NRQL): the engine passes it, so a value at t
+// aggregates [t-lookback, t] as a PromQL [window] range does.
+type windowedMetrics interface {
+	InstantOver(ctx context.Context, q string, at time.Time, lookback time.Duration) ([]backend.Series, error)
+	RangeOver(ctx context.Context, q string, start, end time.Time, step, lookback time.Duration) ([]backend.Series, error)
+}
+
+func (e *Engine) metricInstant(ctx context.Context, q string, at time.Time, lookback time.Duration) ([]backend.Series, error) {
+	if w, ok := e.metrics.(windowedMetrics); ok {
+		return w.InstantOver(ctx, q, at, lookback)
+	}
+	return e.metrics.Instant(ctx, q, at)
+}
+
+func (e *Engine) metricRange(ctx context.Context, q string, start, end time.Time, step, lookback time.Duration) ([]backend.Series, error) {
+	if w, ok := e.metrics.(windowedMetrics); ok {
+		return w.RangeOver(ctx, q, start, end, step, lookback)
+	}
+	return e.metrics.Range(ctx, q, start, end, step)
+}
+
+func (e *Engine) instant(ctx context.Context, q string, at time.Time, lookback time.Duration) (float64, bool, error) {
+	s, err := e.metricInstant(ctx, q, at, lookback)
 	if err != nil {
 		return 0, false, err
 	}
@@ -155,7 +176,7 @@ func (e *Engine) instant(ctx context.Context, q string, at time.Time) (float64, 
 func (e *Engine) history(ctx context.Context, q string, spec window.Spec) ([]float64, error) {
 	subs := spec.SubWindows
 	w := spec.Window.Duration()
-	series, err := e.metrics.Range(ctx, q, subs[0].End, subs[len(subs)-1].End, w)
+	series, err := e.metricRange(ctx, q, subs[0].End, subs[len(subs)-1].End, w, w)
 	if err != nil {
 		return nil, err
 	}
@@ -177,11 +198,11 @@ func (e *Engine) metricOnset(ctx context.Context, ms metricSpec, svc string, spe
 	if fine < time.Minute {
 		fine = time.Minute
 	}
-	q, err := config.Render(ms.tmpl, svc, fine)
+	q, err := e.cfg.Metrics.Render(ms.tmpl, svc, fine)
 	if err != nil {
 		return time.Time{}
 	}
-	series, err := e.metrics.Range(ctx, q, spec.Window.Start, spec.Window.End, fine/2)
+	series, err := e.metricRange(ctx, q, spec.Window.Start, spec.Window.End, fine/2, fine)
 	if err != nil || len(series) == 0 {
 		return time.Time{}
 	}

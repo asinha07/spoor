@@ -51,17 +51,51 @@ func NewWithStores(cfg config.Config, metrics MetricsSource, logs LogStore, trac
 func NewFromConfig(cfg config.Config) *Engine {
 	var m MetricsSource
 	var l, t LogsSource
-	if cfg.Metrics.URL != "" {
-		m = backend.NewMetrics(cfg.Metrics.URL, cfg.Metrics.BearerToken, cfg.Timeout).WithBasicAuth(cfg.Metrics.Username, cfg.Metrics.Password)
+	e := New(cfg, nil, nil, nil)
+	nr := newRelicClient(cfg)
+	switch cfg.Metrics.Type {
+	case config.TypeNewRelic:
+		m = newNewRelicMetrics(nr, cfg.Metrics.RequestRate)
+	default:
+		if cfg.Metrics.URL != "" {
+			m = backend.NewMetrics(cfg.Metrics.URL, cfg.Metrics.BearerToken, cfg.Timeout).WithBasicAuth(cfg.Metrics.Username, cfg.Metrics.Password)
+		}
 	}
-	if cfg.Logs.URL != "" {
-		l = backend.NewLogsQL(cfg.Logs.URL, cfg.Logs.BearerToken, cfg.Timeout).WithBasicAuth(cfg.Logs.Username, cfg.Logs.Password).WithName("logs")
+	e.metrics = m
+	switch cfg.Logs.Type {
+	case config.TypeLoki:
+		if cfg.Logs.URL != "" {
+			e.logs = NewLokiStore(e, backend.NewLoki(cfg.Logs.URL, cfg.Logs.BearerToken, cfg.Timeout).
+				WithBasicAuth(cfg.Logs.Username, cfg.Logs.Password).WithTenant(cfg.Logs.Tenant))
+		}
+	case config.TypeNewRelic:
+		e.logs = NewNewRelicLogs(e, nr)
+	default:
+		if cfg.Logs.URL != "" {
+			l = backend.NewLogsQL(cfg.Logs.URL, cfg.Logs.BearerToken, cfg.Timeout).WithBasicAuth(cfg.Logs.Username, cfg.Logs.Password).WithName("logs")
+			e.rawLogs, e.logs = l, &victoriaLogs{e: e, src: l}
+		}
 	}
-	if cfg.Traces.URL != "" {
-		t = backend.NewLogsQL(cfg.Traces.URL, cfg.Traces.BearerToken, cfg.Timeout).WithBasicAuth(cfg.Traces.Username, cfg.Traces.Password).WithName("traces")
+	switch cfg.Traces.Type {
+	case config.TypeTempo:
+		if cfg.Traces.URL != "" {
+			e.traces = NewTempoStore(e, backend.NewTempo(cfg.Traces.URL, cfg.Traces.BearerToken, cfg.Timeout).
+				WithBasicAuth(cfg.Traces.Username, cfg.Traces.Password).WithTenant(cfg.Traces.Tenant))
+		}
+	case config.TypeNewRelic:
+		e.traces = NewNewRelicTraces(e, nr)
+	default:
+		if cfg.Traces.URL != "" {
+			t = backend.NewLogsQL(cfg.Traces.URL, cfg.Traces.BearerToken, cfg.Timeout).WithBasicAuth(cfg.Traces.Username, cfg.Traces.Password).WithName("traces")
+			e.rawTraces, e.traces = t, &victoriaTraces{e: e, src: t}
+		}
 	}
-	return New(cfg, m, l, t)
+	return e
 }
+
+// sampler is implemented by stores whose answers come from a sample; the
+// note is reported in coverage.
+type sampler interface{ SampleNote() string }
 
 // ignored reports whether svc is configured to be left out of scans.
 func (e *Engine) ignored(svc string) bool {
@@ -89,6 +123,12 @@ func (e *Engine) metricsLink(q string, start, end time.Time) string {
 	if g := e.cfg.Grafana; g.URL != "" && g.Metrics.UID != "" {
 		return links.Grafana(g.URL, g.Metrics.UID, g.Metrics.Type, q, start, end)
 	}
+	switch e.cfg.Metrics.Type {
+	case config.TypePrometheus:
+		return links.Prometheus(e.uiBase(e.cfg.Metrics.Backend), q, start, end)
+	case config.TypeNewRelic:
+		return links.NewRelic(e.cfg.NewRelic.AccountID, e.cfg.NewRelic.Region, q, start, end)
+	}
 	return links.Metrics(e.uiBase(e.cfg.Metrics.Backend), q, start, end)
 }
 
@@ -96,12 +136,24 @@ func (e *Engine) logsLink(q string, start, end time.Time) string {
 	if g := e.cfg.Grafana; g.URL != "" && g.Logs.UID != "" {
 		return links.Grafana(g.URL, g.Logs.UID, g.Logs.Type, q, start, end)
 	}
+	switch e.cfg.Logs.Type {
+	case config.TypeLoki:
+		return "" // Loki has no UI of its own; set grafana.logs_datasource for links
+	case config.TypeNewRelic:
+		return links.NewRelic(e.cfg.NewRelic.AccountID, e.cfg.NewRelic.Region, q, start, end)
+	}
 	return links.LogsQL(e.uiBase(e.cfg.Logs.Backend), q, start, end)
 }
 
 func (e *Engine) tracesLink(q string, start, end time.Time) string {
 	if g := e.cfg.Grafana; g.URL != "" && g.Traces.UID != "" {
 		return links.Grafana(g.URL, g.Traces.UID, g.Traces.Type, q, start, end)
+	}
+	switch e.cfg.Traces.Type {
+	case config.TypeTempo:
+		return "" // Tempo has no UI of its own; set grafana.traces_datasource for links
+	case config.TypeNewRelic:
+		return links.NewRelic(e.cfg.NewRelic.AccountID, e.cfg.NewRelic.Region, q, start, end)
 	}
 	return links.LogsQL(e.uiBase(e.cfg.Traces.Backend), q, start, end)
 }
@@ -260,6 +312,9 @@ func (e *Engine) run(ctx context.Context, req Request, set scorerSet) (Envelope,
 	}
 	if scanNote != "" {
 		env.Coverage["scope"] = scanNote
+	}
+	if s, ok := e.traces.(sampler); ok && env.Coverage[SignalTraces] == "ok" {
+		env.Coverage["traces_sample"] = s.SampleNote()
 	}
 	if _, ok := env.Coverage[SignalLogs]; ok {
 		if logRes.state != "" && !strings.HasPrefix(env.Coverage[SignalLogs], "error") {
