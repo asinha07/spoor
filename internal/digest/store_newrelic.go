@@ -66,14 +66,73 @@ func nrNum(row map[string]any, key string) float64 {
 type newRelicMetrics struct {
 	api   NRQLRunner
 	event string // event type services are listed from (Transaction)
+	label string // service attribute (appName)
 }
 
-func newNewRelicMetrics(api NRQLRunner, requestRate string) newRelicMetrics {
+func newNewRelicMetrics(api NRQLRunner, requestRate, label string) newRelicMetrics {
 	event := "Transaction"
 	if mm := nrFrom.FindStringSubmatch(requestRate); mm != nil {
 		event = mm[1]
 	}
-	return newRelicMetrics{api: api, event: event}
+	return newRelicMetrics{api: api, event: event, label: label}
+}
+
+// Triage scores every service by how far its request rate, error rate and
+// p95 moved in the window against the baseline sub-windows, in two batched
+// queries, so a capped scan examines the most changed services. It reads
+// Transaction-style events (error, duration attributes).
+func (m newRelicMetrics) Triage(ctx context.Context, spec window.Spec) (map[string]float64, error) {
+	lbl := config.NRQLField(m.label)
+	sel := fmt.Sprintf("SELECT count(*) AS n, filter(count(*), WHERE error IS true) AS errs, percentile(duration, 95) AS p95 FROM %s FACET %s LIMIT MAX", m.event, lbl)
+	cur, err := m.api.NRQL(ctx, sel+backend.NRQLRange(spec.Window.Start, spec.Window.End))
+	if err != nil {
+		return nil, err
+	}
+	subs := spec.SubWindows
+	w := spec.Window.Duration()
+	hist := map[string][][3]float64{}
+	regular := true
+	for i := 1; i < len(subs); i++ {
+		regular = regular && subs[i].Start.Equal(subs[i-1].End)
+	}
+	if !regular {
+		return nil, fmt.Errorf("triage needs contiguous baseline windows")
+	}
+	rows, err := m.api.NRQL(ctx, sel+backend.NRQLRange(subs[0].Start, subs[len(subs)-1].End)+" TIMESERIES "+nrDuration(w))
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		svc := nrFacet(r, 0)
+		hist[svc] = append(hist[svc], [3]float64{nrNum(r, "n"), nrNum(r, "errs"), nrNum(r, "p95")})
+	}
+	out := map[string]float64{}
+	for _, r := range cur {
+		svc := nrFacet(r, 0)
+		n, errs, p95 := nrNum(r, "n"), nrNum(r, "errs"), nrNum(r, "p95")
+		var rates, errRates, p95s []float64
+		for _, h := range hist[svc] {
+			rates = append(rates, h[0])
+			if h[0] > 0 {
+				errRates = append(errRates, h[1]/h[0])
+				p95s = append(p95s, h[2])
+			}
+		}
+		if len(rates) < 2 {
+			out[svc] = 1 // new or sparse: worth a look
+			continue
+		}
+		zr, _ := robustZ(n, rates, 0.3, 5)
+		score := math.Abs(zr)
+		if n > 0 && len(errRates) >= 2 {
+			ze, _ := robustZ(errs/n, errRates, 0.5, 0.02)
+			score = math.Max(score, ze)
+			zp, _ := robustZ(p95, p95s, 0.25, 0.02)
+			score = math.Max(score, zp)
+		}
+		out[svc] = score
+	}
+	return out, nil
 }
 
 func (m newRelicMetrics) Instant(ctx context.Context, q string, at time.Time) ([]backend.Series, error) {
@@ -436,9 +495,13 @@ type newRelicTraces struct {
 // NewNewRelicTraces returns a TraceStore backed by New Relic.
 func NewNewRelicTraces(e *Engine, api NRQLRunner) TraceStore { return &newRelicTraces{e: e, api: api} }
 
+// BiasedSpans: New Relic samples spans, keeping failed and slow traces
+// preferentially, so span-level changes need the service's metrics to agree.
+func (n *newRelicTraces) BiasedSpans() bool { return true }
+
 // SampleNote is reported in coverage when traces are scored.
 func (n *newRelicTraces) SampleNote() string {
-	return fmt.Sprintf("attribution from up to %d failed and %d other traces (span statistics are exact)", nrAttrFailed, nrAttrSample)
+	return fmt.Sprintf("spans are New Relic's sample of traces; attribution reads up to %d failed and %d other traces", nrAttrFailed, nrAttrSample)
 }
 
 func (n *newRelicTraces) cfg() config.TracesConfig { return n.e.cfg.Traces }

@@ -248,7 +248,7 @@ func (l LogsConfig) UnclassifiedFilter() string {
 func LokiLabel(f string) string {
 	b := []byte(f)
 	for i, c := range b {
-		if !(c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z') {
+		if !identChar(rune(c), false) {
 			b[i] = '_'
 		}
 	}
@@ -259,7 +259,7 @@ func LokiLabel(f string) string {
 // identifier (log.level, entity.name are fine; dashes and spaces are not).
 func NRQLField(f string) string {
 	for _, r := range f {
-		if !(r == '_' || r == '.' || r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z') {
+		if !identChar(r, true) {
 			return "`" + strings.ReplaceAll(f, "`", "") + "`"
 		}
 	}
@@ -609,4 +609,14 @@ func PromDuration(d time.Duration) string {
 	default:
 		return fmt.Sprintf("%ds", s)
 	}
+}
+
+// identChar reports whether r may appear in a plain identifier: letters,
+// digits, '_' and, with dot set, '.'.
+func identChar(r rune, dot bool) bool {
+	switch {
+	case r == '_', r >= '0' && r <= '9', r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z':
+		return true
+	}
+	return dot && r == '.'
 }

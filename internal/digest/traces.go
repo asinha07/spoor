@@ -17,6 +17,9 @@ const (
 	slowerMinDeltaNs = 20e6 // 20ms
 	spanErrMinDelta  = 0.05
 	spanErrMinCount  = 3
+	// p95MinSpans: below this many spans a p95 is just the slowest call, so
+	// one slow call is not reported as the span getting slower.
+	p95MinSpans = 20
 )
 
 type spanStat struct {
@@ -129,8 +132,9 @@ func (e *Engine) scoreTraces(ctx context.Context, svc, op string, spec window.Sp
 				out = append(out, f)
 			}
 		}
-		// Latency: p95 ratio with an absolute floor.
-		if b.p95 > 0 && c.p95/b.p95 >= slowerMinRatio && c.p95-b.p95 >= slowerMinDeltaNs {
+		// Latency: p95 ratio with an absolute floor, on enough spans for a
+		// p95 to mean something.
+		if c.n >= p95MinSpans && b.n >= p95MinSpans && b.p95 > 0 && c.p95/b.p95 >= slowerMinRatio && c.p95-b.p95 >= slowerMinDeltaNs {
 			ratio := c.p95 / b.p95
 			s := 1 - 0.75/ratio
 			if s >= e.cfg.Scoring.ReportThreshold {
@@ -147,7 +151,46 @@ func (e *Engine) scoreTraces(ctx context.Context, svc, op string, spec window.Sp
 			}
 		}
 	}
-	return out, nil
+	return foldNestedSlower(out), nil
+}
+
+// foldNestedSlower merges span_slower findings of one service with exactly
+// the same before and after p95: nested spans that wrap the same work (a
+// framework filter chain) slow down together and are one change.
+func foldNestedSlower(fs []Finding) []Finding {
+	type key struct{ before, after string }
+	groups := map[key][]int{}
+	for i, f := range fs {
+		if f.Kind == KindSpanSlower {
+			k := key{f.Before, f.After}
+			groups[k] = append(groups[k], i)
+		}
+	}
+	drop := map[int]bool{}
+	for _, idx := range groups {
+		if len(idx) < 2 {
+			continue
+		}
+		keep := idx[0]
+		for _, i := range idx[1:] {
+			if fs[i].Score > fs[keep].Score || (fs[i].Score == fs[keep].Score && fs[i].Title < fs[keep].Title) {
+				keep = i
+			}
+		}
+		for _, i := range idx {
+			if i != keep {
+				drop[i] = true
+			}
+		}
+		fs[keep].Title += fmt.Sprintf(" (and %d nested spans with the same timing)", len(idx)-1)
+	}
+	out := fs[:0]
+	for i, f := range fs {
+		if !drop[i] {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 // exampleSpan returns one trace ID for a span name (the slowest, or the

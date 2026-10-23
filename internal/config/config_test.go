@@ -134,3 +134,58 @@ func TestLoadRejectsBadThresholdEnv(t *testing.T) {
 		t.Fatalf("want SPOOR_REPORT_THRESHOLD error, got %v", err)
 	}
 }
+
+func TestDefaultsPerType(t *testing.T) {
+	c := DefaultFor(Types{Metrics: TypePrometheus, Logs: TypeLoki, Traces: TypeTempo})
+	if c.Metrics.URL != "http://localhost:9090" || c.Logs.URL != "http://localhost:3100" || c.Traces.URL != "http://localhost:3200" {
+		t.Errorf("URLs: %s %s %s", c.Metrics.URL, c.Logs.URL, c.Traces.URL)
+	}
+	if got := c.Logs.EffectiveErrorFilter(); !strings.HasPrefix(got, `| detected_level=~"(?i)(err|`) || !strings.Contains(got, " or level=~") {
+		t.Errorf("Loki error filter = %s", got)
+	}
+	nr := DefaultFor(Types{Metrics: TypeNewRelic, Logs: TypeNewRelic, Traces: TypeNewRelic})
+	if got := nr.Logs.EffectiveErrorFilter(); got != "(lower(level) IN ('err', 'error', 'fatal', 'crit', 'critical', 'alert', 'emerg', 'emergency', 'panic', 'severe') OR lower(log.level) IN ('err', 'error', 'fatal', 'crit', 'critical', 'alert', 'emerg', 'emergency', 'panic', 'severe'))" {
+		t.Errorf("NRQL error filter = %s", got)
+	}
+	q, err := nr.Metrics.Render(nr.Metrics.ErrorRate, "pay'ment", time.Minute)
+	if err != nil || !strings.Contains(q, `appName = 'pay\'ment'`) {
+		t.Errorf("NRQL render = %s, %v", q, err)
+	}
+}
+
+func TestLoadTypeFromFileAndEnv(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "spoor.yaml")
+	if err := os.WriteFile(path, []byte("logs:\n  type: loki\n  url: http://loki:3100\nnewrelic:\n  account_id: 7\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SPOOR_TRACES_TYPE", "newrelic")
+	t.Setenv("NEW_RELIC_API_KEY", "NRAK-x")
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Logs.Type != TypeLoki || cfg.Logs.ServiceField != "service_name" || cfg.Logs.URL != "http://loki:3100" {
+		t.Errorf("loki defaults not applied: %+v", cfg.Logs)
+	}
+	if cfg.Traces.Type != TypeNewRelic || cfg.Traces.DurationField != "duration.ms" || cfg.NewRelic.APIKey != "NRAK-x" || cfg.NewRelic.AccountID != 7 {
+		t.Errorf("newrelic traces not applied: %+v %+v", cfg.Traces, cfg.NewRelic)
+	}
+	if err := os.WriteFile(path, []byte("traces:\n  type: jaeger\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SPOOR_TRACES_TYPE", "")
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "want one of") {
+		t.Errorf("unknown type must be rejected: %v", err)
+	}
+}
+
+func TestNewRelicNeedsAccount(t *testing.T) {
+	c := DefaultFor(Types{Metrics: TypeNewRelic})
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "account_id") {
+		t.Errorf("want an account error, got %v", err)
+	}
+	if got := (NewRelicConfig{Region: "EU"}).Endpoint(); got != "https://api.eu.newrelic.com/graphql" {
+		t.Errorf("EU endpoint = %s", got)
+	}
+}

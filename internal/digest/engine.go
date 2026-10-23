@@ -55,7 +55,7 @@ func NewFromConfig(cfg config.Config) *Engine {
 	nr := newRelicClient(cfg)
 	switch cfg.Metrics.Type {
 	case config.TypeNewRelic:
-		m = newNewRelicMetrics(nr, cfg.Metrics.RequestRate)
+		m = newNewRelicMetrics(nr, cfg.Metrics.RequestRate, cfg.Metrics.ServiceLabel)
 	default:
 		if cfg.Metrics.URL != "" {
 			m = backend.NewMetrics(cfg.Metrics.URL, cfg.Metrics.BearerToken, cfg.Timeout).WithBasicAuth(cfg.Metrics.Username, cfg.Metrics.Password)
@@ -205,8 +205,16 @@ func (e *Engine) run(ctx context.Context, req Request, set scorerSet) (Envelope,
 		logServices = append([]string{}, services...)
 		perService := (set.metrics && e.metrics != nil) || (set.traces && e.traces != nil)
 		if perService && len(services) > e.cfg.MaxServices {
-			scanNote = fmt.Sprintf("metrics and traces scanned for the first %d of %d services (alphabetical; logs cover all); pass service to check others", e.cfg.MaxServices, len(services))
+			order := "the first %d of %d services (alphabetical; logs cover all)"
+			if t, ok := e.metrics.(triager); ok {
+				if scores, err := t.Triage(ctx, spec); err == nil {
+					sort.SliceStable(services, func(i, j int) bool { return scores[services[i]] > scores[services[j]] })
+					order = "the %d of %d services whose request rate, error rate or latency moved most (logs cover all)"
+				}
+			}
+			scanNote = fmt.Sprintf("metrics and traces scanned for "+order+"; pass service to check others", e.cfg.MaxServices, len(services))
 			services = services[:e.cfg.MaxServices]
+			sort.Strings(services)
 		}
 		scope = fmt.Sprintf("%d services", len(logServices))
 	}
@@ -269,6 +277,13 @@ func (e *Engine) run(ctx context.Context, req Request, set scorerSet) (Envelope,
 		return Envelope{}, err
 	}
 
+	// Span changes from a biased span sample need the service's own metrics
+	// to agree.
+	var heldBack int
+	if b, ok := e.traces.(biasedSpans); ok && b.BiasedSpans() && set.metrics && e.metrics != nil {
+		findings, heldBack = corroborateSpans(findings)
+	}
+
 	// A change can only be measured against a baseline that has data. Without
 	// this check an empty baseline (a 1d baseline before data existed, short
 	// retention) makes every recurring error look new.
@@ -293,14 +308,18 @@ func (e *Engine) run(ctx context.Context, req Request, set scorerSet) (Envelope,
 		Coverage: cov.result(len(services)),
 	}
 	noData := markNoData(env.Coverage, list.Coverage, services, known)
+	// A missing baseline matters only for signals that had data in the
+	// window; a signal with no data at all is already reported as such.
+	applied := map[string]string{}
 	for sig, note := range baseNotes {
 		if env.Coverage[sig] == "ok" {
 			env.Coverage[sig] = note
+			applied[sig] = note
 		}
 	}
-	if noData == "" && len(ranked) == 0 && len(baseNotes) > 0 {
-		sigs := make([]string, 0, len(baseNotes))
-		for sig := range baseNotes {
+	if noData == "" && len(ranked) == 0 && len(applied) > 0 {
+		sigs := make([]string, 0, len(applied))
+		for sig := range applied {
 			sigs = append(sigs, sig)
 		}
 		sort.Strings(sigs)
@@ -315,6 +334,9 @@ func (e *Engine) run(ctx context.Context, req Request, set scorerSet) (Envelope,
 	}
 	if s, ok := e.traces.(sampler); ok && env.Coverage[SignalTraces] == "ok" {
 		env.Coverage["traces_sample"] = s.SampleNote()
+	}
+	if heldBack > 0 {
+		env.Coverage["traces_held_back"] = fmt.Sprintf("%d span-level changes not reported: spans are sampled with a bias towards slow and failed requests, so a span change is reported only when the service's own latency or error-rate metric also rose", heldBack)
 	}
 	if _, ok := env.Coverage[SignalLogs]; ok {
 		if logRes.state != "" && !strings.HasPrefix(env.Coverage[SignalLogs], "error") {
@@ -342,6 +364,9 @@ func (e *Engine) run(ctx context.Context, req Request, set scorerSet) (Envelope,
 		}
 	default:
 		env.Summary += logRes.summary
+	}
+	if heldBack > 0 {
+		env.Summary += fmt.Sprintf(" %d span-level changes held back: sampled spans without matching service metrics (see coverage).", heldBack)
 	}
 	e.redact.envelope(&env, allow)
 	return Fit(env, ClampBudget(req.BudgetTokens)), nil
@@ -685,4 +710,40 @@ func keys[V any](m map[string]V) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// biasedSpans is implemented by trace stores whose spans are a biased sample:
+// New Relic keeps failed and slow traces preferentially, so span error rates
+// and p95s swing with sampling while the service's metrics stay flat.
+type biasedSpans interface{ BiasedSpans() bool }
+
+// corroborateSpans keeps span_slower and span_errors_up findings only for
+// services whose metrics show the same kind of change (latency_up,
+// error_rate_up), and returns how many it held back.
+func corroborateSpans(fs []Finding) ([]Finding, int) {
+	agree := map[string]bool{}
+	for _, f := range fs {
+		if f.Signal == SignalMetrics {
+			agree[f.Service+"\x00"+f.Kind] = true
+		}
+	}
+	out := fs[:0:0]
+	held := 0
+	for _, f := range fs {
+		switch {
+		case f.Kind == KindSpanSlower && !agree[f.Service+"\x00"+KindLatencyUp],
+			f.Kind == KindSpanErrorsUp && !agree[f.Service+"\x00"+KindErrorRateUp]:
+			held++
+		default:
+			out = append(out, f)
+		}
+	}
+	return out, held
+}
+
+// triager is implemented by metrics sources that can score every service's
+// change in a few batched queries, so a scan capped at max_services
+// examines the most changed services instead of the first alphabetically.
+type triager interface {
+	Triage(ctx context.Context, spec window.Spec) (map[string]float64, error)
 }

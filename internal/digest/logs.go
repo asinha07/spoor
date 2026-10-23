@@ -745,7 +745,7 @@ func pctChange(now, usual float64) string {
 	if usual <= 0 {
 		return "new"
 	}
-	p := math.Round(100 * (now - usual) / usual)
+	p := math.Round(100*(now-usual)/usual) + 0 // + 0 turns -0 into 0
 	if p >= 0 {
 		return fmt.Sprintf("+%.0f%%", p)
 	}

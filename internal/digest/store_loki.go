@@ -160,7 +160,6 @@ func (l *lokiLogs) Patterns(ctx context.Context, services []string, r window.Ran
 	// one query per service; a service still over the limit is sampled.
 	err := l.patternsFor(ctx, services, r, buckets == nil, res.patterns)
 	if backend.IsSeriesLimit(err) {
-		err = nil
 		var wg sync.WaitGroup
 		sem := make(chan struct{}, logConcurrency)
 		var firstErr error

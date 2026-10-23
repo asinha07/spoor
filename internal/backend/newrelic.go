@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -90,7 +91,15 @@ func (n *NewRelic) NRQL(ctx context.Context, nrql string) ([]map[string]any, err
 	if r.Data.Actor.Account == nil || r.Data.Actor.Account.NRQL == nil {
 		return nil, fmt.Errorf("%w: New Relic returned no data for account %d (check the account ID and the key's access)", ErrUnavailable, n.accountID)
 	}
-	return r.Data.Actor.Account.NRQL.Results, nil
+	res := r.Data.Actor.Account.NRQL.Results
+	if slog.Default().Enabled(ctx, slog.LevelDebug) {
+		preview, _ := json.Marshal(res)
+		if len(preview) > 600 {
+			preview = append(preview[:600], "…"...)
+		}
+		slog.Debug("nrql result", slog.String("nrql", nrql), slog.Int("rows", len(res)), slog.String("preview", string(preview)))
+	}
+	return res, nil
 }
 
 // NRQLTime formats t as epoch milliseconds for SINCE/UNTIL.

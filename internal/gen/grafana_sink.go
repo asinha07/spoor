@@ -139,7 +139,8 @@ func (s GrafanaSink) Spans(ctx context.Context, otlpJSON []byte) error {
 func lokiName(f string) string {
 	b := []byte(f)
 	for i, c := range b {
-		if !(c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z') {
+		plain := c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
+		if !plain {
 			b[i] = '_'
 		}
 	}
@@ -183,7 +184,7 @@ func parseSeries(line string) (map[string]string, string, error) {
 			return nil, "", fmt.Errorf("bad label value in %q", line)
 		}
 		end := k + 1
-		for end < len(line) && !(line[end] == '"' && line[end-1] != '\\') {
+		for end < len(line) && (line[end] != '"' || line[end-1] == '\\') {
 			end++
 		}
 		val, err := strconv.Unquote(line[k : end+1])
@@ -228,7 +229,7 @@ func (s *rwSeries) encode() []byte {
 		var b []byte
 		b = append(b, 1<<3|1) // field 1, fixed64
 		b = binary.LittleEndian.AppendUint64(b, math.Float64bits(sm.v))
-		b = append(b, 2<<3|0) // field 2, varint
+		b = append(b, 2<<3) // field 2, wire type 0 (varint)
 		b = binary.AppendUvarint(b, uint64(sm.ts))
 		out = appendBytes(out, 2, b)
 	}

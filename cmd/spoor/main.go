@@ -128,7 +128,11 @@ func query(cmd string, args []string, stdout io.Writer) error {
 	pretty := fs.Bool("pretty", false, "indent JSON output")
 	stats := fs.Bool("stats", false, "print backend request count and time to stderr")
 	asJSON := fs.Bool("json", false, "doctor: print JSON instead of text")
+	logLevel := fs.String("log-level", envOr("SPOOR_LOG_LEVEL", "warn"), "log level for stderr: debug shows every backend query")
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := setupLogging("text", *logLevel); err != nil {
 		return err
 	}
 	started := time.Now()
